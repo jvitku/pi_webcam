@@ -312,45 +312,70 @@ video {
 
 /* --- Timeline --- */
 
-.controls {
+.timeline-bar {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
-    margin-bottom: 0.35rem;
-    flex-wrap: wrap;
+    gap: 0.3rem;
+    padding: 0.3rem;
+    background: var(--surface);
+    border-radius: 10px;
+    margin-bottom: 0.3rem;
 }
 
-input[type="date"] {
-    background: var(--surface-hover);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 0.35rem 0.6rem;
-    font-size: 0.82rem;
+.timeline-bar input[type="date"] {
+    background: none;
+    color: var(--text-dim);
+    border: none;
+    padding: 0.25rem 0.4rem;
+    font-size: 0.75rem;
     font-family: inherit;
+    width: auto;
 }
 
-#time-display {
+.timeline-bar #time-display {
     font-family: "SF Mono", "Menlo", monospace;
-    font-size: 1.05rem;
+    font-size: 0.95rem;
     color: #fff;
     font-weight: 600;
-    min-width: 5em;
+    min-width: 4.5em;
+    text-align: center;
 }
 
-#frame-count {
-    font-size: 0.78rem;
+.tl-btn {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+    border-radius: 6px;
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+    min-width: 36px;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tl-btn:hover { background: var(--surface-hover); }
+.tl-btn:active { background: rgba(255,255,255,0.15); }
+
+.tl-count {
+    font-size: 0.7rem;
     color: var(--text-dim);
     margin-left: auto;
+    padding-right: 0.3rem;
+    white-space: nowrap;
 }
 
 .slider-container {
-    padding: 0.35rem 0;
+    padding: 0.15rem 0 0.3rem;
 }
 
 .slider-container input[type="range"] {
     width: 100%;
-    height: 4px;
+    height: 3px;
     -webkit-appearance: none;
     background: rgba(255,255,255,0.1);
     border-radius: 2px;
@@ -359,35 +384,13 @@ input[type="date"] {
 
 .slider-container input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
     background: #fff;
     cursor: pointer;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
 }
-
-.nav-buttons {
-    display: flex;
-    gap: 0.35rem;
-    margin-bottom: 0.5rem;
-}
-
-.nav-buttons button {
-    background: var(--surface);
-    color: #c0c0d0;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 0.4rem 1rem;
-    cursor: pointer;
-    font-size: 0.85rem;
-    font-family: inherit;
-    font-weight: 500;
-    transition: background 0.15s;
-    -webkit-tap-highlight-color: transparent;
-}
-
-.nav-buttons button:hover { background: var(--surface-hover); }
 
 /* --- Frame viewer --- */
 

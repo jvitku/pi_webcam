@@ -186,7 +186,7 @@ async function loadDay(dateStr) {
         const res = await fetch(`/api/frames?start=${dayStart}&end=${dayEnd}&limit=1000`);
         const data = await res.json();
         currentFrames = data.frames;
-        frameCount.textContent = `${data.total} frames`;
+        frameCount.textContent = `${data.total}`;
 
         if (currentFrames.length === 0) {
             noFrames.classList.remove("hidden");
@@ -220,7 +220,7 @@ async function loadAllFrames(start, end, total) {
         if (!data.has_more) break;
     }
     slider.max = currentFrames.length - 1;
-    frameCount.textContent = `${currentFrames.length} frames`;
+    frameCount.textContent = `${currentFrames.length}`;
 }
 
 function onSliderInput() {
@@ -277,9 +277,9 @@ function togglePlay() {
     if (playInterval) {
         clearInterval(playInterval);
         playInterval = null;
-        btnPlay.textContent = "Play";
+        btnPlay.textContent = "\u25B6";
     } else {
-        btnPlay.textContent = "Pause";
+        btnPlay.textContent = "\u23F8";
         playInterval = setInterval(() => {
             if (currentIndex >= currentFrames.length - 1) { togglePlay(); return; }
             stepFrame(1);
@@ -513,7 +513,7 @@ async function pollNewFrames() {
 
         if (data.has_more) await loadAllFrames(dayStart, dayEnd, data.total);
 
-        frameCount.textContent = `${currentFrames.length} frames`;
+        frameCount.textContent = `${currentFrames.length}`;
         slider.max = currentFrames.length - 1;
 
         if (wasAtEnd) showFrame(currentFrames.length - 1);
