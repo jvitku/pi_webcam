@@ -388,15 +388,6 @@ function initCameraControls() {
         });
     });
 
-    // Lens position slider
-    const lensSlider = document.getElementById("lens-position");
-    const lensValue = document.getElementById("lens-value");
-    lensSlider.addEventListener("input", () => {
-        const v = parseFloat(lensSlider.value);
-        lensValue.textContent = v === 0 ? "\u221e" : `${(1/v).toFixed(2)}m`;
-        debouncedCamera({ lensPosition: v });
-    });
-
     // EV slider
     const evSlider = document.getElementById("ev-slider");
     const evValue = document.getElementById("ev-value");
