@@ -99,6 +99,22 @@ def _read_net_rates() -> tuple[float, float] | None:
         return None
 
 
+def _read_throttled() -> int | None:
+    """Read throttle status from vcgencmd. Returns bitmask or None."""
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["vcgencmd", "get_throttled"],
+            capture_output=True, text=True, timeout=2,
+        )
+        # Output: "throttled=0x0"
+        val = result.stdout.strip().split("=")[-1]
+        return int(val, 16)
+    except (FileNotFoundError, subprocess.TimeoutExpired, ValueError):
+        return None
+
+
 def validate_image_path(path: str) -> str:
     """Validate image path to prevent path traversal."""
     if ".." in path or path.startswith("/") or path.startswith("\\"):
@@ -258,6 +274,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         cpu_percent = _read_cpu_percent()
         mem = _read_mem_info()
         net = _read_net_rates()
+        throttled = _read_throttled()
 
         from pi_webcam.retention import get_disk_free_mb, get_disk_used_mb
 
@@ -273,6 +290,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             mem_total_mb=mem[1] if mem else None,
             net_rx_kbps=net[0] if net else None,
             net_tx_kbps=net[1] if net else None,
+            throttled=throttled,
             uptime_seconds=int(time.time()) - app.state.start_time,
         )
 

@@ -58,4 +58,5 @@ class SystemStatus(BaseModel):
     mem_total_mb: int | None = None
     net_rx_kbps: float | None = None
     net_tx_kbps: float | None = None
+    throttled: int | None = None
     uptime_seconds: int

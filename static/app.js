@@ -332,10 +332,28 @@ async function loadStatus() {
             setPill(statNet, `\u2191${fmtRate(data.net_tx_kbps)} \u2193${fmtRate(data.net_rx_kbps)}`, "");
         }
 
+        // Throttle
+        const tEl = document.getElementById("stat-throttle");
+        if (data.throttled != null && data.throttled !== 0) {
+            const t = data.throttled;
+            const parts = [];
+            if (t & 0x1) parts.push("\u26a1now");      // under-voltage now
+            if (t & 0x4) parts.push("\u0398now");       // throttled now
+            if (t & 0x2) parts.push("capped");          // freq capped now
+            if ((t & 0x10000) && !(t & 0x1)) parts.push("\u26a1prev");
+            if ((t & 0x40000) && !(t & 0x4)) parts.push("\u0398prev");
+            if ((t & 0x20000) && !(t & 0x2)) parts.push("cap\u2019d");
+            const hasNow = t & 0x7;
+            tEl.textContent = parts.join(" ");
+            tEl.className = `pill ${hasNow ? "crit" : "warn"}`;
+        } else {
+            tEl.className = "pill hidden";
+        }
+
         const diskGb = (data.disk_free_mb / 1024).toFixed(1);
         const diskLv = data.disk_free_mb < 2048 ? "crit" : data.disk_free_mb < 5120 ? "warn" : "";
         setPill(statDisk, `${diskGb} GB`, diskLv);
-        setPill(statFrames, `${data.total_frames} frames`, "");
+        setPill(statFrames, `${data.total_frames}`, "");
 
     } catch (e) {
         statConnection.innerHTML = '<span class="dot"></span> Disconnected';
