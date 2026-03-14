@@ -42,6 +42,7 @@ function init() {
     loadStatus();
     initStream();
     setInterval(loadStatus, 10000);
+    setInterval(pollNewFrames, 5000);
 }
 
 // --- Live Stream ---
@@ -254,6 +255,43 @@ async function loadStatus() {
     } catch (e) {
         statusEl.textContent = "Disconnected";
         statusEl.className = "status error";
+    }
+}
+
+// --- Auto-refresh ---
+
+async function pollNewFrames() {
+    // Only poll if viewing today
+    const today = new Date().toISOString().split("T")[0];
+    if (datePicker.value !== today) return;
+
+    const dayStart = new Date(today + "T00:00:00Z").getTime() / 1000;
+    const dayEnd = dayStart + 86399;
+
+    try {
+        const res = await fetch(`/api/frames?start=${dayStart}&end=${dayEnd}&limit=1000`);
+        const data = await res.json();
+
+        if (data.total === currentFrames.length) return;
+
+        // New frames arrived
+        const wasAtEnd = currentIndex >= currentFrames.length - 1;
+        currentFrames = data.frames;
+
+        // Load remaining pages if needed
+        if (data.has_more) {
+            await loadAllFrames(dayStart, dayEnd, data.total);
+        }
+
+        frameCount.textContent = `${currentFrames.length} frames`;
+        slider.max = currentFrames.length - 1;
+
+        // If user was at the latest frame, follow the new ones
+        if (wasAtEnd) {
+            showFrame(currentFrames.length - 1);
+        }
+    } catch (e) {
+        // Silently ignore poll errors
     }
 }
 
