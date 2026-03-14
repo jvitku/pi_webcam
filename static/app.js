@@ -114,15 +114,18 @@ async function setAnswer(sdp) {
 // --- Fullscreen ---
 
 function toggleFullscreen() {
+    const video = document.getElementById("live-video");
     const container = document.getElementById("video-container");
-    if (document.fullscreenElement) {
+
+    if (video.webkitEnterFullscreen) {
+        // iOS Safari: only works on video element
+        video.webkitEnterFullscreen();
+    } else if (document.fullscreenElement) {
         document.exitFullscreen();
-    } else {
-        container.requestFullscreen().catch(() => {
-            // Fallback for iOS Safari
-            const video = document.getElementById("live-video");
-            if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();
-        });
+    } else if (container.requestFullscreen) {
+        container.requestFullscreen();
+    } else if (container.webkitRequestFullscreen) {
+        container.webkitRequestFullscreen();
     }
 }
 
