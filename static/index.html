@@ -7,15 +7,18 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <header>
-        <h1>Pi Webcam</h1>
-        <div id="status" class="status">Connecting...</div>
-    </header>
-    <div id="sys-stats" class="sys-stats"></div>
+    <div id="status-bar" class="status-bar">
+        <span id="stat-connection" class="pill">--</span>
+        <span id="stat-cpu" class="pill">--</span>
+        <span id="stat-temp" class="pill">--</span>
+        <span id="stat-ram" class="pill">--</span>
+        <span id="stat-net" class="pill">--</span>
+        <span id="stat-disk" class="pill">--</span>
+        <span id="stat-frames" class="pill">--</span>
+    </div>
 
     <main>
         <section id="live-section">
-            <h2>Live Stream</h2>
             <div class="video-container" id="video-container">
                 <div class="video-toolbar">
                     <button onclick="toggleFullscreen()" title="Fullscreen">&#x26F6;</button>
@@ -29,7 +32,7 @@
 
         <section id="settings-section">
             <div class="settings-row">
-                <label for="fps-select">Capture FPS:</label>
+                <label for="fps-select">Capture</label>
                 <select id="fps-select">
                     <option value="0.1">1 frame/10s</option>
                     <option value="0.2">1 frame/5s</option>
@@ -41,7 +44,6 @@
         </section>
 
         <section id="timeline-section">
-            <h2>Timeline</h2>
             <div class="controls">
                 <input type="date" id="date-picker">
                 <span id="time-display">--:--:--</span>

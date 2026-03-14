@@ -7,7 +7,6 @@ const frameInfo = document.getElementById("frame-info");
 const noFrames = document.getElementById("no-frames");
 const frameCount = document.getElementById("frame-count");
 const datePicker = document.getElementById("date-picker");
-const statusEl = document.getElementById("status");
 const streamError = document.getElementById("stream-error");
 const liveVideo = document.getElementById("live-video");
 const btnPrev = document.getElementById("btn-prev");
@@ -15,7 +14,15 @@ const btnNext = document.getElementById("btn-next");
 const btnPlay = document.getElementById("btn-play");
 const fpsSelect = document.getElementById("fps-select");
 const fpsStatus = document.getElementById("fps-status");
-const sysStats = document.getElementById("sys-stats");
+
+// Status pills
+const statConnection = document.getElementById("stat-connection");
+const statCpu = document.getElementById("stat-cpu");
+const statTemp = document.getElementById("stat-temp");
+const statRam = document.getElementById("stat-ram");
+const statNet = document.getElementById("stat-net");
+const statDisk = document.getElementById("stat-disk");
+const statFrames = document.getElementById("stat-frames");
 
 let currentFrames = [];
 let currentIndex = -1;
@@ -258,61 +265,69 @@ function togglePlay() {
 
 // --- Status ---
 
+function setPill(el, text, level) {
+    el.textContent = text;
+    el.className = "pill" + (level ? " " + level : "");
+}
+
+function fmtRate(kbps) {
+    return kbps > 1024 ? `${(kbps / 1024).toFixed(1)} Mb` : `${Math.round(kbps)} kb`;
+}
+
 async function loadStatus() {
     try {
         const res = await fetch("/api/status");
         const data = await res.json();
 
+        // Connection
         if (data.capture.running) {
             const fpsLabel = data.capture_fps >= 1
                 ? `${data.capture_fps} fps`
-                : `1 frame/${Math.round(1 / data.capture_fps)}s`;
-            const diskGb = (data.disk_free_mb / 1024).toFixed(1);
-            statusEl.textContent = `Online | ${fpsLabel} | ${data.total_frames} frames | ${diskGb} GB free`;
-            statusEl.className = "status online";
+                : `1/${Math.round(1 / data.capture_fps)}s`;
+            statConnection.innerHTML = `<span class="dot"></span> ${fpsLabel}`;
+            statConnection.className = "pill ok";
             syncFpsDropdown(data.capture_fps);
         } else {
-            statusEl.textContent = "Capture stopped";
-            statusEl.className = "status offline";
+            statConnection.innerHTML = '<span class="dot"></span> Offline';
+            statConnection.className = "pill offline";
         }
-        updateSysStats(data);
+
+        // CPU
+        if (data.cpu_percent != null) {
+            const lv = data.cpu_percent > 90 ? "crit" : data.cpu_percent > 70 ? "warn" : "";
+            setPill(statCpu, `CPU ${data.cpu_percent}%`, lv);
+        }
+
+        // Temp
+        if (data.cpu_temp != null) {
+            const lv = data.cpu_temp > 75 ? "crit" : data.cpu_temp > 65 ? "warn" : "";
+            setPill(statTemp, `${data.cpu_temp.toFixed(0)}°C`, lv);
+        }
+
+        // RAM
+        if (data.mem_used_mb != null && data.mem_total_mb != null) {
+            const pct = Math.round(data.mem_used_mb / data.mem_total_mb * 100);
+            const lv = pct > 90 ? "crit" : pct > 75 ? "warn" : "";
+            setPill(statRam, `RAM ${pct}%`, lv);
+        }
+
+        // Net
+        if (data.net_tx_kbps != null) {
+            setPill(statNet, `\u2191${fmtRate(data.net_tx_kbps)} \u2193${fmtRate(data.net_rx_kbps)}`, "");
+        }
+
+        // Disk
+        const diskGb = (data.disk_free_mb / 1024).toFixed(1);
+        const diskLv = data.disk_free_mb < 2048 ? "crit" : data.disk_free_mb < 5120 ? "warn" : "";
+        setPill(statDisk, `${diskGb} GB`, diskLv);
+
+        // Frames
+        setPill(statFrames, `${data.total_frames} frames`, "");
+
     } catch (e) {
-        statusEl.textContent = "Disconnected";
-        statusEl.className = "status offline";
-        sysStats.innerHTML = "";
+        statConnection.innerHTML = '<span class="dot"></span> Disconnected';
+        statConnection.className = "pill offline";
     }
-}
-
-function updateSysStats(data) {
-    const parts = [];
-
-    if (data.cpu_percent != null) {
-        const cls = data.cpu_percent > 90 ? "stat-crit" : data.cpu_percent > 70 ? "stat-warn" : "";
-        parts.push(`<span class="${cls}">CPU: ${data.cpu_percent}%</span>`);
-    }
-
-    if (data.cpu_temp != null) {
-        const cls = data.cpu_temp > 75 ? "stat-crit" : data.cpu_temp > 65 ? "stat-warn" : "";
-        parts.push(`<span class="${cls}">Temp: ${data.cpu_temp.toFixed(1)}&deg;C</span>`);
-    }
-
-    if (data.mem_used_mb != null && data.mem_total_mb != null) {
-        const pct = (data.mem_used_mb / data.mem_total_mb * 100).toFixed(0);
-        const cls = pct > 90 ? "stat-crit" : pct > 75 ? "stat-warn" : "";
-        parts.push(`<span class="${cls}">RAM: ${data.mem_used_mb}/${data.mem_total_mb} MB (${pct}%)</span>`);
-    }
-
-    if (data.net_tx_kbps != null) {
-        const tx = data.net_tx_kbps > 1024
-            ? `${(data.net_tx_kbps / 1024).toFixed(1)} Mbps`
-            : `${data.net_tx_kbps.toFixed(0)} kbps`;
-        const rx = data.net_rx_kbps > 1024
-            ? `${(data.net_rx_kbps / 1024).toFixed(1)} Mbps`
-            : `${data.net_rx_kbps.toFixed(0)} kbps`;
-        parts.push(`<span>Net: &uarr;${tx} &darr;${rx}</span>`);
-    }
-
-    sysStats.innerHTML = parts.join("");
 }
 
 // --- FPS Control ---
