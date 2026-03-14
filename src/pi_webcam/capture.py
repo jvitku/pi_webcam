@@ -62,7 +62,6 @@ def build_ffmpeg_command(settings: Settings, output_dir: Path) -> list[str]:
         "-rtsp_transport", "tcp",
         "-fflags", "nobuffer",
         "-flags", "low_delay",
-        "-skip_frame", "nokey",
         "-i", settings.rtsp_url,
         "-vf", f"fps={settings.capture_fps}",
         "-q:v", str(settings.jpeg_quality),
