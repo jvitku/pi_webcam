@@ -2,9 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Pi Webcam</title>
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="apple-touch-icon" href="data:,">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <body>
     <div id="status-bar" class="status-bar">
@@ -17,8 +20,9 @@
         <span id="stat-frames" class="pill">--</span>
     </div>
 
-    <main>
-        <section id="live-section">
+    <!-- Tab: Live -->
+    <main id="tab-live" class="tab-content active">
+        <section>
             <div class="video-container" id="video-container">
                 <div class="video-toolbar">
                     <button onclick="toggleFullscreen()" title="Fullscreen">&#x26F6;</button>
@@ -27,19 +31,6 @@
                 <div id="stream-error" class="stream-error hidden">
                     Stream unavailable. <button onclick="initStream()">Retry</button>
                 </div>
-            </div>
-        </section>
-
-        <section id="settings-section">
-            <div class="settings-row">
-                <label for="fps-select">Capture</label>
-                <select id="fps-select">
-                    <option value="0.1">1 frame/10s</option>
-                    <option value="0.2">1 frame/5s</option>
-                    <option value="0.33">1 frame/3s</option>
-                    <option value="0.5">1 frame/2s (max)</option>
-                </select>
-                <span id="fps-status"></span>
             </div>
         </section>
 
@@ -64,6 +55,99 @@
             </div>
         </section>
     </main>
+
+    <!-- Tab: Settings -->
+    <main id="tab-settings" class="tab-content">
+        <section>
+            <div class="video-container" id="settings-video-container">
+                <div class="video-toolbar">
+                    <button onclick="toggleSettingsFullscreen()" title="Fullscreen">&#x26F6;</button>
+                </div>
+                <video id="settings-video" autoplay muted playsinline></video>
+                <div id="focus-indicator" class="focus-indicator hidden"></div>
+                <div class="tap-hint" id="tap-hint">Tap to focus</div>
+            </div>
+        </section>
+
+        <section class="settings-group">
+            <h3>Capture</h3>
+            <div class="setting-row">
+                <label>Save rate</label>
+                <select id="fps-select">
+                    <option value="0.1">1 frame / 10s</option>
+                    <option value="0.2">1 frame / 5s</option>
+                    <option value="0.33">1 frame / 3s</option>
+                    <option value="0.5">1 frame / 2s (max)</option>
+                </select>
+                <span id="fps-status" class="setting-status"></span>
+            </div>
+        </section>
+
+        <section class="settings-group">
+            <h3>Focus</h3>
+            <div class="setting-row">
+                <label>Mode</label>
+                <div class="seg-control" id="af-mode">
+                    <button data-val="auto" class="active">Auto</button>
+                    <button data-val="continuous">Continuous</button>
+                    <button data-val="manual">Manual</button>
+                </div>
+            </div>
+            <div class="setting-row" id="lens-row" style="display:none">
+                <label>Distance</label>
+                <input type="range" id="lens-position" min="0" max="15" step="0.1" value="0">
+                <span id="lens-value" class="setting-value">&#x221e;</span>
+            </div>
+        </section>
+
+        <section class="settings-group">
+            <h3>Exposure</h3>
+            <div class="setting-row">
+                <label>Metering</label>
+                <div class="seg-control" id="metering-mode">
+                    <button data-val="centre" class="active">Centre</button>
+                    <button data-val="spot">Spot</button>
+                    <button data-val="average">Average</button>
+                </div>
+            </div>
+            <div class="setting-row">
+                <label>EV</label>
+                <input type="range" id="ev-slider" min="-8" max="8" step="0.5" value="0">
+                <span id="ev-value" class="setting-value">0</span>
+            </div>
+        </section>
+
+        <section class="settings-group">
+            <h3>Image</h3>
+            <div class="setting-row">
+                <label>Brightness</label>
+                <input type="range" id="brightness-slider" min="-1" max="1" step="0.05" value="0">
+                <span id="brightness-value" class="setting-value">0</span>
+            </div>
+            <div class="setting-row">
+                <label>Contrast</label>
+                <input type="range" id="contrast-slider" min="0" max="3" step="0.1" value="1">
+                <span id="contrast-value" class="setting-value">1.0</span>
+            </div>
+            <div class="setting-row">
+                <label>Saturation</label>
+                <input type="range" id="saturation-slider" min="0" max="3" step="0.1" value="1">
+                <span id="saturation-value" class="setting-value">1.0</span>
+            </div>
+        </section>
+    </main>
+
+    <!-- Tab Bar -->
+    <nav class="tab-bar">
+        <button class="tab-btn active" data-tab="tab-live">
+            <span class="tab-icon">&#x25B6;</span>
+            <span class="tab-label">Live</span>
+        </button>
+        <button class="tab-btn" data-tab="tab-settings">
+            <span class="tab-icon">&#x2699;</span>
+            <span class="tab-label">Settings</span>
+        </button>
+    </nav>
 
     <script>
         const WEBRTC_URL = "{{ webrtc_url }}";

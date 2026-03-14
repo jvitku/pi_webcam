@@ -44,9 +44,10 @@ class Settings(BaseSettings):
     auth_username: str = ""
     auth_password: str = ""
 
-    # MediaMTX URLs for frontend
+    # MediaMTX URLs
     webrtc_url: str = "http://localhost:8889/cam"
     hls_url: str = "http://localhost:8888/cam"
+    mediamtx_api_url: str = "http://localhost:9997"
 
     @property
     def frames_dir(self) -> Path:

@@ -44,11 +44,14 @@ function init() {
     fpsSelect.addEventListener("change", onFpsChange);
 
     document.addEventListener("keydown", (e) => {
+        if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
         if (e.key === "ArrowLeft") stepFrame(-1);
         else if (e.key === "ArrowRight") stepFrame(1);
         else if (e.key === " ") { e.preventDefault(); togglePlay(); }
     });
 
+    initTabs();
+    initCameraControls();
     loadDay(today);
     loadStatus();
     initStream();
@@ -56,13 +59,37 @@ function init() {
     setInterval(pollNewFrames, 5000);
 }
 
+// --- Tabs ---
+
+function initTabs() {
+    document.querySelectorAll(".tab-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+            document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
+            btn.classList.add("active");
+            document.getElementById(btn.dataset.tab).classList.add("active");
+
+            // Mirror live stream to settings video when switching to settings
+            if (btn.dataset.tab === "tab-settings") {
+                const settingsVideo = document.getElementById("settings-video");
+                if (liveVideo.srcObject) {
+                    settingsVideo.srcObject = liveVideo.srcObject;
+                } else if (liveVideo.src) {
+                    settingsVideo.src = liveVideo.src;
+                }
+                loadCameraSettings();
+            }
+        });
+    });
+}
+
 // --- Live Stream ---
 
 async function initStream() {
     streamError.classList.add("hidden");
     try {
-        // Try WebRTC first
-        const res = await fetch(WEBRTC_URL + "/whep", { method: "POST", headers: { "Content-Type": "application/sdp" },
+        const res = await fetch(WEBRTC_URL + "/whep", { method: "POST",
+            headers: { "Content-Type": "application/sdp" },
             body: await createOffer() });
         if (res.ok) {
             const answer = await res.text();
@@ -73,7 +100,6 @@ async function initStream() {
         console.warn("WebRTC failed, trying HLS:", e);
     }
 
-    // Fallback to HLS
     try {
         liveVideo.src = HLS_URL + "/index.m3u8";
         liveVideo.play().catch(() => {});
@@ -90,9 +116,7 @@ async function createOffer() {
     pc.addTransceiver("video", { direction: "recvonly" });
     pc.addTransceiver("audio", { direction: "recvonly" });
 
-    pc.ontrack = (e) => {
-        liveVideo.srcObject = e.streams[0];
-    };
+    pc.ontrack = (e) => { liveVideo.srcObject = e.streams[0]; };
 
     pc.oniceconnectionstatechange = () => {
         if (pc.iceConnectionState === "failed" || pc.iceConnectionState === "disconnected") {
@@ -103,7 +127,6 @@ async function createOffer() {
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
 
-    // Wait for ICE gathering
     await new Promise((resolve) => {
         if (pc.iceGatheringState === "complete") resolve();
         else pc.onicegatheringstatechange = () => {
@@ -125,7 +148,6 @@ function toggleFullscreen() {
     const container = document.getElementById("video-container");
 
     if (video.webkitEnterFullscreen) {
-        // iOS Safari: only works on video element
         video.webkitEnterFullscreen();
     } else if (document.fullscreenElement) {
         document.exitFullscreen();
@@ -133,6 +155,19 @@ function toggleFullscreen() {
         container.requestFullscreen();
     } else if (container.webkitRequestFullscreen) {
         container.webkitRequestFullscreen();
+    }
+}
+
+function toggleSettingsFullscreen() {
+    const video = document.getElementById("settings-video");
+    const container = document.getElementById("settings-video-container");
+
+    if (video.webkitEnterFullscreen) {
+        video.webkitEnterFullscreen();
+    } else if (document.fullscreenElement) {
+        document.exitFullscreen();
+    } else if (container.requestFullscreen) {
+        container.requestFullscreen();
     }
 }
 
@@ -162,7 +197,6 @@ async function loadDay(dateStr) {
         slider.value = currentFrames.length - 1;
         showFrame(currentFrames.length - 1);
 
-        // Load more if needed
         if (data.has_more) {
             await loadAllFrames(dayStart, dayEnd, data.total);
         }
@@ -188,16 +222,12 @@ function onSliderInput() {
     clearTimeout(debounceTimer);
     const idx = parseInt(slider.value);
     updateTimeDisplay(idx);
-
-    debounceTimer = setTimeout(() => {
-        showThumbnail(idx);
-    }, 100);
+    debounceTimer = setTimeout(() => showThumbnail(idx), 100);
 }
 
 function onSliderChange() {
     clearTimeout(debounceTimer);
-    const idx = parseInt(slider.value);
-    showFrame(idx);
+    showFrame(parseInt(slider.value));
 }
 
 function showFrame(idx) {
@@ -210,10 +240,7 @@ function showFrame(idx) {
     frameImage.src = `/images/${frame.file_path}`;
     frameImage.classList.add("visible");
     frameImage.onerror = () => {
-        // Try thumbnail as fallback
-        if (frame.thumb_path) {
-            frameImage.src = `/thumbs/${frame.thumb_path}`;
-        }
+        if (frame.thumb_path) frameImage.src = `/thumbs/${frame.thumb_path}`;
     };
 
     const dt = new Date(frame.captured_at * 1000);
@@ -225,25 +252,20 @@ function showThumbnail(idx) {
     if (idx < 0 || idx >= currentFrames.length) return;
     currentIndex = idx;
     const frame = currentFrames[idx];
-
-    const src = frame.thumb_path ? `/thumbs/${frame.thumb_path}` : `/images/${frame.file_path}`;
-    frameImage.src = src;
+    frameImage.src = frame.thumb_path ? `/thumbs/${frame.thumb_path}` : `/images/${frame.file_path}`;
     frameImage.classList.add("visible");
     noFrames.classList.add("hidden");
 }
 
 function updateTimeDisplay(idx) {
     if (idx < 0 || idx >= currentFrames.length) return;
-    const frame = currentFrames[idx];
-    const dt = new Date(frame.captured_at * 1000);
+    const dt = new Date(currentFrames[idx].captured_at * 1000);
     timeDisplay.textContent = dt.toTimeString().split(" ")[0];
 }
 
 function stepFrame(delta) {
     const newIdx = currentIndex + delta;
-    if (newIdx >= 0 && newIdx < currentFrames.length) {
-        showFrame(newIdx);
-    }
+    if (newIdx >= 0 && newIdx < currentFrames.length) showFrame(newIdx);
 }
 
 function togglePlay() {
@@ -254,10 +276,7 @@ function togglePlay() {
     } else {
         btnPlay.textContent = "Pause";
         playInterval = setInterval(() => {
-            if (currentIndex >= currentFrames.length - 1) {
-                togglePlay();
-                return;
-            }
+            if (currentIndex >= currentFrames.length - 1) { togglePlay(); return; }
             stepFrame(1);
         }, 200);
     }
@@ -279,7 +298,6 @@ async function loadStatus() {
         const res = await fetch("/api/status");
         const data = await res.json();
 
-        // Connection
         if (data.capture.running) {
             const fpsLabel = data.capture_fps >= 1
                 ? `${data.capture_fps} fps`
@@ -292,36 +310,26 @@ async function loadStatus() {
             statConnection.className = "pill offline";
         }
 
-        // CPU
         if (data.cpu_percent != null) {
             const lv = data.cpu_percent > 90 ? "crit" : data.cpu_percent > 70 ? "warn" : "";
             setPill(statCpu, `CPU ${data.cpu_percent}%`, lv);
         }
-
-        // Temp
         if (data.cpu_temp != null) {
             const lv = data.cpu_temp > 75 ? "crit" : data.cpu_temp > 65 ? "warn" : "";
-            setPill(statTemp, `${data.cpu_temp.toFixed(0)}°C`, lv);
+            setPill(statTemp, `${data.cpu_temp.toFixed(0)}\u00b0C`, lv);
         }
-
-        // RAM
         if (data.mem_used_mb != null && data.mem_total_mb != null) {
             const pct = Math.round(data.mem_used_mb / data.mem_total_mb * 100);
             const lv = pct > 90 ? "crit" : pct > 75 ? "warn" : "";
             setPill(statRam, `RAM ${pct}%`, lv);
         }
-
-        // Net
         if (data.net_tx_kbps != null) {
             setPill(statNet, `\u2191${fmtRate(data.net_tx_kbps)} \u2193${fmtRate(data.net_rx_kbps)}`, "");
         }
 
-        // Disk
         const diskGb = (data.disk_free_mb / 1024).toFixed(1);
         const diskLv = data.disk_free_mb < 2048 ? "crit" : data.disk_free_mb < 5120 ? "warn" : "";
         setPill(statDisk, `${diskGb} GB`, diskLv);
-
-        // Frames
         setPill(statFrames, `${data.total_frames} frames`, "");
 
     } catch (e) {
@@ -338,7 +346,6 @@ async function onFpsChange() {
     try {
         const res = await fetch(`/api/capture-fps?fps=${fps}`, { method: "POST" });
         if (res.ok) {
-            const data = await res.json();
             fpsStatus.textContent = "OK";
             setTimeout(() => { fpsStatus.textContent = ""; }, 2000);
         } else {
@@ -350,24 +357,197 @@ async function onFpsChange() {
 }
 
 function syncFpsDropdown(fps) {
-    // Select the closest matching option
     const options = Array.from(fpsSelect.options);
     let best = options[0];
     let bestDiff = Infinity;
     for (const opt of options) {
         const diff = Math.abs(parseFloat(opt.value) - fps);
-        if (diff < bestDiff) {
-            bestDiff = diff;
-            best = opt;
-        }
+        if (diff < bestDiff) { bestDiff = diff; best = opt; }
     }
     fpsSelect.value = best.value;
+}
+
+// --- Camera Controls ---
+
+let cameraDebounce = null;
+
+function initCameraControls() {
+    // Segmented controls
+    document.querySelectorAll(".seg-control").forEach(ctrl => {
+        ctrl.querySelectorAll("button").forEach(btn => {
+            btn.addEventListener("click", () => {
+                ctrl.querySelectorAll("button").forEach(b => b.classList.remove("active"));
+                btn.classList.add("active");
+                onSegChange(ctrl.id, btn.dataset.val);
+            });
+        });
+    });
+
+    // Lens position slider
+    const lensSlider = document.getElementById("lens-position");
+    const lensValue = document.getElementById("lens-value");
+    lensSlider.addEventListener("input", () => {
+        const v = parseFloat(lensSlider.value);
+        lensValue.textContent = v === 0 ? "\u221e" : `${(1/v).toFixed(2)}m`;
+        debouncedCamera({ lensPosition: v });
+    });
+
+    // EV slider
+    const evSlider = document.getElementById("ev-slider");
+    const evValue = document.getElementById("ev-value");
+    evSlider.addEventListener("input", () => {
+        const v = parseFloat(evSlider.value);
+        evValue.textContent = v > 0 ? `+${v}` : `${v}`;
+        debouncedCamera({ ev: v });
+    });
+
+    // Brightness
+    const brSlider = document.getElementById("brightness-slider");
+    const brValue = document.getElementById("brightness-value");
+    brSlider.addEventListener("input", () => {
+        brValue.textContent = parseFloat(brSlider.value).toFixed(2);
+        debouncedCamera({ brightness: parseFloat(brSlider.value) });
+    });
+
+    // Contrast
+    const ctSlider = document.getElementById("contrast-slider");
+    const ctValue = document.getElementById("contrast-value");
+    ctSlider.addEventListener("input", () => {
+        ctValue.textContent = parseFloat(ctSlider.value).toFixed(1);
+        debouncedCamera({ contrast: parseFloat(ctSlider.value) });
+    });
+
+    // Saturation
+    const satSlider = document.getElementById("saturation-slider");
+    const satValue = document.getElementById("saturation-value");
+    satSlider.addEventListener("input", () => {
+        satValue.textContent = parseFloat(satSlider.value).toFixed(1);
+        debouncedCamera({ saturation: parseFloat(satSlider.value) });
+    });
+
+    // Tap to focus on settings video
+    const settingsContainer = document.getElementById("settings-video-container");
+    settingsContainer.addEventListener("click", onVideoTap);
+}
+
+function onSegChange(controlId, value) {
+    if (controlId === "af-mode") {
+        const lensRow = document.getElementById("lens-row");
+        const tapHint = document.getElementById("tap-hint");
+        lensRow.style.display = value === "manual" ? "flex" : "none";
+        tapHint.textContent = value === "manual" ? "Tap to focus" :
+            value === "auto" ? "Tap to focus" : "";
+        sendCamera({ afMode: value });
+    } else if (controlId === "metering-mode") {
+        sendCamera({ metering: value });
+    }
+}
+
+function onVideoTap(e) {
+    const container = e.currentTarget;
+    const rect = container.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+
+    // Show focus indicator
+    const indicator = document.getElementById("focus-indicator");
+    indicator.style.left = `${x * 100}%`;
+    indicator.style.top = `${y * 100}%`;
+    indicator.classList.remove("hidden", "show");
+    void indicator.offsetWidth; // force reflow
+    indicator.classList.add("show");
+    setTimeout(() => indicator.classList.remove("show"), 1000);
+
+    // Get current AF mode
+    const afMode = document.querySelector("#af-mode button.active").dataset.val;
+
+    // Set focus window around tap point (10% window)
+    const hw = 0.05;
+    const wx = Math.max(0, x - hw);
+    const wy = Math.max(0, y - hw);
+    const ww = Math.min(hw * 2, 1 - wx);
+    const wh = Math.min(hw * 2, 1 - wy);
+    const window = `${wx.toFixed(3)},${wy.toFixed(3)},${ww.toFixed(3)},${wh.toFixed(3)}`;
+
+    if (afMode === "manual") {
+        // In manual mode, estimate lens position from tap (center = far, edges = near)
+        const dist = Math.sqrt((x - 0.5) ** 2 + (y - 0.5) ** 2);
+        const lens = dist * 10; // rough mapping
+        document.getElementById("lens-position").value = lens;
+        document.getElementById("lens-value").textContent = lens === 0 ? "\u221e" : `${(1/lens).toFixed(2)}m`;
+        sendCamera({ lensPosition: lens });
+    } else {
+        // Auto/continuous: set AF window and trigger
+        sendCamera({ afMode: "auto", afWindows: window });
+    }
+}
+
+function debouncedCamera(settings) {
+    clearTimeout(cameraDebounce);
+    cameraDebounce = setTimeout(() => sendCamera(settings), 300);
+}
+
+async function sendCamera(settings) {
+    try {
+        await fetch("/api/camera", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(settings),
+        });
+    } catch (e) {
+        console.error("Camera setting failed:", e);
+    }
+}
+
+async function loadCameraSettings() {
+    try {
+        const res = await fetch("/api/camera");
+        const data = await res.json();
+        if (data.error) return;
+
+        // AF mode
+        const afBtns = document.querySelectorAll("#af-mode button");
+        afBtns.forEach(b => b.classList.toggle("active", b.dataset.val === data.afMode));
+        document.getElementById("lens-row").style.display = data.afMode === "manual" ? "flex" : "none";
+
+        // Lens
+        if (data.lensPosition != null) {
+            document.getElementById("lens-position").value = data.lensPosition;
+            const v = data.lensPosition;
+            document.getElementById("lens-value").textContent = v === 0 ? "\u221e" : `${(1/v).toFixed(2)}m`;
+        }
+
+        // Metering
+        const metBtns = document.querySelectorAll("#metering-mode button");
+        metBtns.forEach(b => b.classList.toggle("active", b.dataset.val === data.metering));
+
+        // EV
+        if (data.ev != null) {
+            document.getElementById("ev-slider").value = data.ev;
+            document.getElementById("ev-value").textContent = data.ev > 0 ? `+${data.ev}` : `${data.ev}`;
+        }
+
+        // Image adjustments
+        if (data.brightness != null) {
+            document.getElementById("brightness-slider").value = data.brightness;
+            document.getElementById("brightness-value").textContent = data.brightness.toFixed(2);
+        }
+        if (data.contrast != null) {
+            document.getElementById("contrast-slider").value = data.contrast;
+            document.getElementById("contrast-value").textContent = data.contrast.toFixed(1);
+        }
+        if (data.saturation != null) {
+            document.getElementById("saturation-slider").value = data.saturation;
+            document.getElementById("saturation-value").textContent = data.saturation.toFixed(1);
+        }
+    } catch (e) {
+        console.error("Failed to load camera settings:", e);
+    }
 }
 
 // --- Auto-refresh ---
 
 async function pollNewFrames() {
-    // Only poll if viewing today
     const today = new Date().toISOString().split("T")[0];
     if (datePicker.value !== today) return;
 
@@ -377,43 +557,18 @@ async function pollNewFrames() {
     try {
         const res = await fetch(`/api/frames?start=${dayStart}&end=${dayEnd}&limit=1000`);
         const data = await res.json();
-
         if (data.total === currentFrames.length) return;
 
-        // New frames arrived
         const wasAtEnd = currentIndex >= currentFrames.length - 1;
         currentFrames = data.frames;
 
-        // Load remaining pages if needed
-        if (data.has_more) {
-            await loadAllFrames(dayStart, dayEnd, data.total);
-        }
+        if (data.has_more) await loadAllFrames(dayStart, dayEnd, data.total);
 
         frameCount.textContent = `${currentFrames.length} frames`;
         slider.max = currentFrames.length - 1;
 
-        // If user was at the latest frame, follow the new ones
-        if (wasAtEnd) {
-            showFrame(currentFrames.length - 1);
-        }
-    } catch (e) {
-        // Silently ignore poll errors
-    }
-}
-
-// --- Days ---
-
-async function loadDays() {
-    try {
-        const res = await fetch("/api/days");
-        const days = await res.json();
-        if (days.length > 0 && !datePicker.value) {
-            datePicker.value = days[0];
-            loadDay(days[0]);
-        }
-    } catch (e) {
-        console.error("Failed to load days:", e);
-    }
+        if (wasAtEnd) showFrame(currentFrames.length - 1);
+    } catch (e) { /* ignore */ }
 }
 
 // --- Start ---

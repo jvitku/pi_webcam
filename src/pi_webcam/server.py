@@ -5,6 +5,7 @@ import secrets
 import time
 from pathlib import Path
 
+import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -292,6 +293,88 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             asyncio.create_task(capture_worker.restart_ffmpeg())
 
         return {"old_fps": old_fps, "new_fps": fps}
+
+    @app.get("/api/camera")
+    async def get_camera_settings() -> dict[str, object]:
+        """Get current camera settings from MediaMTX."""
+        try:
+            async with httpx.AsyncClient() as client:
+                r = await client.get(
+                    f"{settings.mediamtx_api_url}/v3/config/paths/get/cam",
+                    timeout=5,
+                )
+                if r.status_code != 200:
+                    return {"error": "MediaMTX API unavailable"}
+                data = r.json()
+                return {
+                    "afMode": data.get("rpiCameraAfMode", "auto"),
+                    "lensPosition": data.get(
+                        "rpiCameraLensPosition", 0.0
+                    ),
+                    "ev": data.get("rpiCameraExposureValue", 0),
+                    "metering": data.get(
+                        "rpiCameraMetering", "centre"
+                    ),
+                    "brightness": data.get(
+                        "rpiCameraBrightness", 0.0
+                    ),
+                    "contrast": data.get("rpiCameraContrast", 1.0),
+                    "saturation": data.get(
+                        "rpiCameraSaturation", 1.0
+                    ),
+                }
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=502, detail="Cannot reach MediaMTX API"
+            ) from exc
+
+    @app.patch("/api/camera")
+    async def update_camera_settings(
+        request: Request,
+    ) -> dict[str, object]:
+        """Update camera settings via MediaMTX API."""
+        body = await request.json()
+
+        # Map our simple keys to MediaMTX rpiCamera keys
+        key_map = {
+            "afMode": "rpiCameraAfMode",
+            "lensPosition": "rpiCameraLensPosition",
+            "afWindows": "rpiCameraAfWindows",
+            "ev": "rpiCameraExposureValue",
+            "metering": "rpiCameraMetering",
+            "brightness": "rpiCameraBrightness",
+            "contrast": "rpiCameraContrast",
+            "saturation": "rpiCameraSaturation",
+        }
+
+        mtx_body: dict[str, object] = {}
+        for key, val in body.items():
+            if key in key_map:
+                mtx_body[key_map[key]] = val
+
+        if not mtx_body:
+            raise HTTPException(
+                status_code=400, detail="No valid settings provided"
+            )
+
+        try:
+            async with httpx.AsyncClient() as client:
+                r = await client.patch(
+                    f"{settings.mediamtx_api_url}"
+                    "/v3/config/paths/edit/cam",
+                    json=mtx_body,
+                    timeout=5,
+                )
+                if r.status_code == 200:
+                    return {"applied": mtx_body}
+                return {
+                    "error": f"MediaMTX returned {r.status_code}",
+                    "detail": r.text,
+                }
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=502, detail="Cannot reach MediaMTX API"
+            ) from exc
 
     @app.get("/api/stream-url")
     async def stream_url() -> dict[str, str]:
