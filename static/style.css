@@ -36,6 +36,33 @@ h2 { font-size: 1.1rem; margin-bottom: 0.5rem; color: #ccc; }
 
 section { margin-bottom: 1.5rem; }
 
+.settings-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+}
+
+.settings-row label {
+    font-size: 0.9rem;
+    color: #ccc;
+}
+
+.settings-row select {
+    background: #2a2a3e;
+    color: #e0e0e0;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+#fps-status {
+    font-size: 0.8rem;
+    color: #4fc3f7;
+}
+
 .video-container {
     position: relative;
     background: #000;
@@ -43,6 +70,25 @@ section { margin-bottom: 1.5rem; }
     overflow: hidden;
     aspect-ratio: 16/9;
 }
+
+.video-toolbar {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 10;
+}
+
+.video-toolbar button {
+    background: rgba(0,0,0,0.5);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 0.3rem 0.5rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+.video-toolbar button:hover { background: rgba(0,0,0,0.8); }
 
 video {
     width: 100%;

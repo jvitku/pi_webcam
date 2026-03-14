@@ -13,6 +13,8 @@ const liveVideo = document.getElementById("live-video");
 const btnPrev = document.getElementById("btn-prev");
 const btnNext = document.getElementById("btn-next");
 const btnPlay = document.getElementById("btn-play");
+const fpsSelect = document.getElementById("fps-select");
+const fpsStatus = document.getElementById("fps-status");
 
 let currentFrames = [];
 let currentIndex = -1;
@@ -31,6 +33,7 @@ function init() {
     btnPrev.addEventListener("click", () => stepFrame(-1));
     btnNext.addEventListener("click", () => stepFrame(1));
     btnPlay.addEventListener("click", togglePlay);
+    fpsSelect.addEventListener("change", onFpsChange);
 
     document.addEventListener("keydown", (e) => {
         if (e.key === "ArrowLeft") stepFrame(-1);
@@ -105,6 +108,21 @@ async function createOffer() {
 
 async function setAnswer(sdp) {
     await pc.setRemoteDescription({ type: "answer", sdp });
+}
+
+// --- Fullscreen ---
+
+function toggleFullscreen() {
+    const container = document.getElementById("video-container");
+    if (document.fullscreenElement) {
+        document.exitFullscreen();
+    } else {
+        container.requestFullscreen().catch(() => {
+            // Fallback for iOS Safari
+            const video = document.getElementById("live-video");
+            if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();
+        });
+    }
 }
 
 // --- Timeline ---
@@ -248,6 +266,7 @@ async function loadStatus() {
             const diskGb = (data.disk_free_mb / 1024).toFixed(1);
             statusEl.textContent = `Online | ${fpsLabel} | ${data.total_frames} frames | ${diskGb} GB free`;
             statusEl.className = "status online";
+            syncFpsDropdown(data.capture_fps);
         } else {
             statusEl.textContent = "Capture stopped";
             statusEl.className = "status offline";
@@ -256,6 +275,40 @@ async function loadStatus() {
         statusEl.textContent = "Disconnected";
         statusEl.className = "status offline";
     }
+}
+
+// --- FPS Control ---
+
+async function onFpsChange() {
+    const fps = parseFloat(fpsSelect.value);
+    fpsStatus.textContent = "Applying...";
+    try {
+        const res = await fetch(`/api/capture-fps?fps=${fps}`, { method: "POST" });
+        if (res.ok) {
+            const data = await res.json();
+            fpsStatus.textContent = "OK";
+            setTimeout(() => { fpsStatus.textContent = ""; }, 2000);
+        } else {
+            fpsStatus.textContent = "Error";
+        }
+    } catch (e) {
+        fpsStatus.textContent = "Failed";
+    }
+}
+
+function syncFpsDropdown(fps) {
+    // Select the closest matching option
+    const options = Array.from(fpsSelect.options);
+    let best = options[0];
+    let bestDiff = Infinity;
+    for (const opt of options) {
+        const diff = Math.abs(parseFloat(opt.value) - fps);
+        if (diff < bestDiff) {
+            bestDiff = diff;
+            best = opt;
+        }
+    }
+    fpsSelect.value = best.value;
 }
 
 // --- Auto-refresh ---

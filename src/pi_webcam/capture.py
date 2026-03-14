@@ -134,6 +134,15 @@ class CaptureWorker:
                 self._process.kill()
         self.running = False
 
+    async def restart_ffmpeg(self) -> None:
+        """Kill the current ffmpeg process so the capture loop restarts it."""
+        if self._process and self._process.returncode is None:
+            self._process.terminate()
+            try:
+                await asyncio.wait_for(self._process.wait(), timeout=5)
+            except TimeoutError:
+                self._process.kill()
+
     async def _run_ffmpeg(self) -> None:
         """Run ffmpeg and poll for new files while it runs."""
         cmd = build_ffmpeg_command(self.settings, self.output_dir)

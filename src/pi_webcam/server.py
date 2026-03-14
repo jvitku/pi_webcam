@@ -184,6 +184,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             uptime_seconds=int(time.time()) - app.state.start_time,
         )
 
+    @app.post("/api/capture-fps")
+    async def set_capture_fps(
+        fps: float = Query(gt=0, le=30),
+    ) -> dict[str, object]:
+        s: Settings = app.state.settings
+        old_fps = s.capture_fps
+        # Update the in-memory setting (not persisted to env file)
+        object.__setattr__(s, "capture_fps", fps)
+
+        # Restart ffmpeg with new FPS
+        capture_worker = getattr(app.state, "capture_worker", None)
+        if capture_worker is not None:
+            import asyncio
+
+            asyncio.create_task(capture_worker.restart_ffmpeg())
+
+        return {"old_fps": old_fps, "new_fps": fps}
+
     @app.get("/api/stream-url")
     async def stream_url() -> dict[str, str]:
         return {

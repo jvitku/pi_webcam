@@ -15,11 +15,29 @@
     <main>
         <section id="live-section">
             <h2>Live Stream</h2>
-            <div class="video-container">
+            <div class="video-container" id="video-container">
+                <div class="video-toolbar">
+                    <button onclick="toggleFullscreen()" title="Fullscreen">&#x26F6;</button>
+                </div>
                 <video id="live-video" autoplay muted playsinline></video>
                 <div id="stream-error" class="stream-error hidden">
                     Stream unavailable. <button onclick="initStream()">Retry</button>
                 </div>
+            </div>
+        </section>
+
+        <section id="settings-section">
+            <div class="settings-row">
+                <label for="fps-select">Capture FPS:</label>
+                <select id="fps-select">
+                    <option value="0.1">1 frame/10s</option>
+                    <option value="0.2">1 frame/5s</option>
+                    <option value="0.5">1 frame/2s</option>
+                    <option value="1">1 fps</option>
+                    <option value="2">2 fps</option>
+                    <option value="5">5 fps</option>
+                </select>
+                <span id="fps-status"></span>
             </div>
         </section>
 

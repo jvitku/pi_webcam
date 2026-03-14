@@ -45,6 +45,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Start capture worker
     stop_event = asyncio.Event()
     capture_worker = CaptureWorker(settings, db)
+    app.state.capture_worker = capture_worker
 
     async def update_capture_status() -> None:
         """Periodically sync capture worker state to app state."""
