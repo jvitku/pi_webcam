@@ -32,7 +32,7 @@ h2 { font-size: 1.1rem; margin-bottom: 0.5rem; color: #ccc; }
     background: #333;
 }
 .status.online { background: #1b5e20; }
-.status.error { background: #b71c1c; }
+.status.offline { background: #b71c1c; }
 
 section { margin-bottom: 1.5rem; }
 
@@ -159,7 +159,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 .hidden { display: none !important; }
 
-.error {
+.stream-error {
     position: absolute;
     inset: 0;
     display: flex;

@@ -250,11 +250,11 @@ async function loadStatus() {
             statusEl.className = "status online";
         } else {
             statusEl.textContent = "Capture stopped";
-            statusEl.className = "status error";
+            statusEl.className = "status offline";
         }
     } catch (e) {
         statusEl.textContent = "Disconnected";
-        statusEl.className = "status error";
+        statusEl.className = "status offline";
     }
 }
 
