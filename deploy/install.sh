@@ -81,7 +81,7 @@ cp -r "$PROJECT_DIR/src" "$PROJECT_DIR/static" "$PROJECT_DIR/pyproject.toml" "$P
 # Install Python dependencies
 echo "--- Installing Python dependencies ---"
 cd "$INSTALL_DIR"
-uv sync --no-dev 2>/dev/null || uv pip install -e . 2>/dev/null || true
+/root/.local/bin/uv sync --no-dev --no-group dev 2>/dev/null || /root/.local/bin/uv pip install -e . 2>/dev/null || true
 
 # Copy configs
 echo "--- Copying configuration ---"

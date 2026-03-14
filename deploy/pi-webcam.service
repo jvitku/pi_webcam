@@ -6,7 +6,7 @@ Requires=mediamtx.service
 [Service]
 # Wait for MediaMTX to be ready (up to 30s)
 ExecStartPre=/bin/bash -c 'for i in $(seq 1 30); do curl -sf http://localhost:8889/cam/ > /dev/null && exit 0; sleep 1; done; echo "MediaMTX not ready after 30s"; exit 1'
-ExecStart=/usr/local/bin/uv run --project /opt/pi_webcam uvicorn pi_webcam.main:create_app --factory --host 0.0.0.0 --port 8080 --workers 1
+ExecStart=/root/.local/bin/uv run --project /opt/pi_webcam uvicorn pi_webcam.main:create_app --factory --host 0.0.0.0 --port 8080 --workers 1
 WorkingDirectory=/opt/pi_webcam
 Restart=always
 RestartSec=5
