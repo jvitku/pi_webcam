@@ -34,6 +34,20 @@ h2 { font-size: 1.1rem; margin-bottom: 0.5rem; color: #ccc; }
 .status.online { background: #1b5e20; }
 .status.offline { background: #b71c1c; }
 
+.sys-stats {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    padding: 0.4rem 0;
+    margin-bottom: 0.75rem;
+    font-size: 0.8rem;
+    font-family: monospace;
+    color: #999;
+}
+
+.sys-stats .stat-warn { color: #ff9800; }
+.sys-stats .stat-crit { color: #f44336; }
+
 section { margin-bottom: 1.5rem; }
 
 .settings-row {

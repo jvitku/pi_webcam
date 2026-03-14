@@ -15,6 +15,7 @@ const btnNext = document.getElementById("btn-next");
 const btnPlay = document.getElementById("btn-play");
 const fpsSelect = document.getElementById("fps-select");
 const fpsStatus = document.getElementById("fps-status");
+const sysStats = document.getElementById("sys-stats");
 
 let currentFrames = [];
 let currentIndex = -1;
@@ -271,10 +272,44 @@ async function loadStatus() {
             statusEl.textContent = "Capture stopped";
             statusEl.className = "status offline";
         }
+        updateSysStats(data);
     } catch (e) {
         statusEl.textContent = "Disconnected";
         statusEl.className = "status offline";
+        sysStats.innerHTML = "";
     }
+}
+
+function updateSysStats(data) {
+    const parts = [];
+
+    if (data.cpu_percent != null) {
+        const cls = data.cpu_percent > 90 ? "stat-crit" : data.cpu_percent > 70 ? "stat-warn" : "";
+        parts.push(`<span class="${cls}">CPU: ${data.cpu_percent}%</span>`);
+    }
+
+    if (data.cpu_temp != null) {
+        const cls = data.cpu_temp > 75 ? "stat-crit" : data.cpu_temp > 65 ? "stat-warn" : "";
+        parts.push(`<span class="${cls}">Temp: ${data.cpu_temp.toFixed(1)}&deg;C</span>`);
+    }
+
+    if (data.mem_used_mb != null && data.mem_total_mb != null) {
+        const pct = (data.mem_used_mb / data.mem_total_mb * 100).toFixed(0);
+        const cls = pct > 90 ? "stat-crit" : pct > 75 ? "stat-warn" : "";
+        parts.push(`<span class="${cls}">RAM: ${data.mem_used_mb}/${data.mem_total_mb} MB (${pct}%)</span>`);
+    }
+
+    if (data.net_tx_kbps != null) {
+        const tx = data.net_tx_kbps > 1024
+            ? `${(data.net_tx_kbps / 1024).toFixed(1)} Mbps`
+            : `${data.net_tx_kbps.toFixed(0)} kbps`;
+        const rx = data.net_rx_kbps > 1024
+            ? `${(data.net_rx_kbps / 1024).toFixed(1)} Mbps`
+            : `${data.net_rx_kbps.toFixed(0)} kbps`;
+        parts.push(`<span>Net: &uarr;${tx} &darr;${rx}</span>`);
+    }
+
+    sysStats.innerHTML = parts.join("");
 }
 
 // --- FPS Control ---

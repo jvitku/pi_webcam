@@ -53,4 +53,9 @@ class SystemStatus(BaseModel):
     disk_free_mb: int
     disk_used_mb: int
     cpu_temp: float | None = None
+    cpu_percent: float | None = None
+    mem_used_mb: int | None = None
+    mem_total_mb: int | None = None
+    net_rx_kbps: float | None = None
+    net_tx_kbps: float | None = None
     uptime_seconds: int

@@ -81,5 +81,28 @@ class TestSystemStatus:
             uptime_seconds=3600,
         )
         assert ss.cpu_temp is None
+        assert ss.cpu_percent is None
+        assert ss.mem_used_mb is None
+        assert ss.net_rx_kbps is None
+        assert ss.net_tx_kbps is None
         assert ss.total_frames == 5000
         assert ss.capture_fps == 0.5
+
+    def test_with_sys_stats(self) -> None:
+        ss = SystemStatus(
+            capture=CaptureStatus(running=True),
+            capture_fps=1.0,
+            total_frames=100,
+            disk_free_mb=5000,
+            disk_used_mb=10000,
+            cpu_temp=55.2,
+            cpu_percent=42.3,
+            mem_used_mb=320,
+            mem_total_mb=460,
+            net_rx_kbps=150.5,
+            net_tx_kbps=2048.0,
+            uptime_seconds=7200,
+        )
+        assert ss.cpu_percent == 42.3
+        assert ss.mem_used_mb == 320
+        assert ss.net_tx_kbps == 2048.0

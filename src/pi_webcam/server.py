@@ -15,6 +15,88 @@ from pi_webcam.config import Settings
 from pi_webcam.database import Database
 from pi_webcam.models import CaptureStatus, Frame, FrameList, SystemStatus
 
+# --- System stats helpers ---
+
+_prev_cpu: tuple[float, float] | None = None
+_prev_net: tuple[float, int, int] | None = None  # (time, rx_bytes, tx_bytes)
+
+
+def _read_cpu_percent() -> float | None:
+    """Read CPU usage from /proc/stat. Returns percent (0-100) since last call."""
+    global _prev_cpu  # noqa: PLW0603
+    try:
+        with open("/proc/stat") as f:
+            line = f.readline()
+        parts = line.split()
+        idle = float(parts[4])
+        total = sum(float(x) for x in parts[1:])
+
+        if _prev_cpu is None:
+            _prev_cpu = (total, idle)
+            return None
+
+        prev_total, prev_idle = _prev_cpu
+        _prev_cpu = (total, idle)
+
+        dt = total - prev_total
+        di = idle - prev_idle
+        if dt <= 0:
+            return 0.0
+        return round((1.0 - di / dt) * 100, 1)
+    except (FileNotFoundError, ValueError, IndexError):
+        return None
+
+
+def _read_mem_info() -> tuple[int, int] | None:
+    """Read memory info. Returns (used_mb, total_mb) or None."""
+    try:
+        info: dict[str, int] = {}
+        with open("/proc/meminfo") as f:
+            for line in f:
+                parts = line.split()
+                if parts[0] in ("MemTotal:", "MemAvailable:"):
+                    info[parts[0]] = int(parts[1])  # kB
+                if len(info) == 2:
+                    break
+        total = info["MemTotal:"] // 1024
+        avail = info["MemAvailable:"] // 1024
+        return (total - avail, total)
+    except (FileNotFoundError, ValueError, KeyError):
+        return None
+
+
+def _read_net_rates() -> tuple[float, float] | None:
+    """Read network throughput in kbps for wlan0. Returns (rx_kbps, tx_kbps)."""
+    global _prev_net  # noqa: PLW0603
+    try:
+        now = time.time()
+        rx_bytes = tx_bytes = 0
+        with open("/proc/net/dev") as f:
+            for line in f:
+                if "wlan0" in line:
+                    parts = line.split()
+                    rx_bytes = int(parts[1])
+                    tx_bytes = int(parts[9])
+                    break
+        if rx_bytes == 0 and tx_bytes == 0:
+            return None
+
+        if _prev_net is None:
+            _prev_net = (now, rx_bytes, tx_bytes)
+            return None
+
+        prev_time, prev_rx, prev_tx = _prev_net
+        _prev_net = (now, rx_bytes, tx_bytes)
+
+        dt = now - prev_time
+        if dt <= 0:
+            return (0.0, 0.0)
+        rx_kbps = round((rx_bytes - prev_rx) / dt / 1024 * 8, 1)
+        tx_kbps = round((tx_bytes - prev_tx) / dt / 1024 * 8, 1)
+        return (rx_kbps, tx_kbps)
+    except (FileNotFoundError, ValueError, IndexError):
+        return None
+
 
 def validate_image_path(path: str) -> str:
     """Validate image path to prevent path traversal."""
@@ -172,6 +254,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except (FileNotFoundError, ValueError):
             pass
 
+        cpu_percent = _read_cpu_percent()
+        mem = _read_mem_info()
+        net = _read_net_rates()
+
         from pi_webcam.retention import get_disk_free_mb, get_disk_used_mb
 
         return SystemStatus(
@@ -181,6 +267,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             disk_free_mb=get_disk_free_mb(s.data_dir),
             disk_used_mb=get_disk_used_mb(s.data_dir),
             cpu_temp=cpu_temp,
+            cpu_percent=cpu_percent,
+            mem_used_mb=mem[0] if mem else None,
+            mem_total_mb=mem[1] if mem else None,
+            net_rx_kbps=net[0] if net else None,
+            net_tx_kbps=net[1] if net else None,
             uptime_seconds=int(time.time()) - app.state.start_time,
         )
 
