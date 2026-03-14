@@ -337,14 +337,14 @@ async function loadStatus() {
         if (data.throttled != null && data.throttled !== 0) {
             const t = data.throttled;
             const parts = [];
-            if (t & 0x1) parts.push("\u26a1now");      // under-voltage now
-            if (t & 0x4) parts.push("\u0398now");       // throttled now
-            if (t & 0x2) parts.push("capped");          // freq capped now
+            if (t & 0x1) parts.push("\u26a1Under-voltage");
+            if (t & 0x4) parts.push("Throttled now");
+            if (t & 0x2) parts.push("Capped now");
             if ((t & 0x10000) && !(t & 0x1)) parts.push("\u26a1prev");
-            if ((t & 0x40000) && !(t & 0x4)) parts.push("\u0398prev");
-            if ((t & 0x20000) && !(t & 0x2)) parts.push("cap\u2019d");
+            if ((t & 0x40000) && !(t & 0x4)) parts.push("Throttled prev");
+            if ((t & 0x20000) && !(t & 0x2)) parts.push("Capped prev");
             const hasNow = t & 0x7;
-            tEl.textContent = parts.join(" ");
+            tEl.textContent = parts.join(" | ");
             tEl.className = `pill ${hasNow ? "crit" : "warn"}`;
         } else {
             tEl.className = "pill hidden";
