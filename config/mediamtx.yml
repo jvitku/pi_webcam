@@ -1,6 +1,10 @@
 # MediaMTX configuration for Pi Webcam
 logLevel: warn
 
+# API (for camera control)
+api: yes
+apiAddress: :9997
+
 # Protocol endpoints
 rtspAddress: :8554
 webrtcAddress: :8889

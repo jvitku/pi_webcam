@@ -478,7 +478,7 @@ function onVideoTap(e) {
         sendCamera({ lensPosition: lens });
     } else {
         // Auto/continuous: set AF window and trigger
-        sendCamera({ afMode: "auto", afWindows: window });
+        sendCamera({ afMode: "auto", afWindow: window });
     }
 }
 

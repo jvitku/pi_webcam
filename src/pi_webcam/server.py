@@ -311,7 +311,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "lensPosition": data.get(
                         "rpiCameraLensPosition", 0.0
                     ),
-                    "ev": data.get("rpiCameraExposureValue", 0),
+                    "ev": data.get("rpiCameraEV", 0),
                     "metering": data.get(
                         "rpiCameraMetering", "centre"
                     ),
@@ -339,8 +339,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         key_map = {
             "afMode": "rpiCameraAfMode",
             "lensPosition": "rpiCameraLensPosition",
-            "afWindows": "rpiCameraAfWindows",
-            "ev": "rpiCameraExposureValue",
+            "afWindow": "rpiCameraAfWindow",
+            "ev": "rpiCameraEV",
             "metering": "rpiCameraMetering",
             "brightness": "rpiCameraBrightness",
             "contrast": "rpiCameraContrast",
