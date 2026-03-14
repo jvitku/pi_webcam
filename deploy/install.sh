@@ -1,8 +1,11 @@
 #!/bin/bash
 # Pi Webcam — Installation Script
 # Run on Raspberry Pi Zero 2 W with Raspberry Pi OS Lite 64-bit (Bookworm)
-# Usage: sudo bash install.sh
+# Usage: cd ~/pi_webcam && sudo bash deploy/install.sh
 set -euo pipefail
+
+# Resolve project root (parent of the directory containing this script)
+PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 MEDIAMTX_VERSION="1.12.0"
 MEDIAMTX_URL="https://github.com/bluenviron/mediamtx/releases/download/v${MEDIAMTX_VERSION}/mediamtx_v${MEDIAMTX_VERSION}_linux_arm64v8.tar.gz"
@@ -11,10 +14,18 @@ DATA_DIR="/data/pi_webcam"
 CONFIG_DIR="/etc/pi_webcam"
 
 echo "=== Pi Webcam Installation ==="
+echo "Project directory: $PROJECT_DIR"
 
 # Check root
 if [[ $EUID -ne 0 ]]; then
-    echo "Error: Run as root (sudo bash install.sh)"
+    echo "Error: Run as root (sudo bash deploy/install.sh)"
+    exit 1
+fi
+
+# Verify project structure
+if [[ ! -d "$PROJECT_DIR/src" || ! -d "$PROJECT_DIR/config" || ! -d "$PROJECT_DIR/deploy" ]]; then
+    echo "Error: Cannot find project files in $PROJECT_DIR"
+    echo "Make sure you run this from the project root: cd ~/pi_webcam && sudo bash deploy/install.sh"
     exit 1
 fi
 
@@ -65,10 +76,7 @@ mkdir -p "$DATA_DIR/frames" "$CONFIG_DIR" "$INSTALL_DIR"
 
 # Copy application
 echo "--- Deploying application ---"
-if [[ -d "$(dirname "$0")/../src" ]]; then
-    PROJECT_SRC="$(cd "$(dirname "$0")/.." && pwd)"
-    cp -r "$PROJECT_SRC/src" "$PROJECT_SRC/static" "$PROJECT_SRC/pyproject.toml" "$PROJECT_SRC/README.md" "$INSTALL_DIR/"
-fi
+cp -r "$PROJECT_DIR/src" "$PROJECT_DIR/static" "$PROJECT_DIR/pyproject.toml" "$PROJECT_DIR/README.md" "$INSTALL_DIR/"
 
 # Install Python dependencies
 echo "--- Installing Python dependencies ---"
@@ -78,18 +86,17 @@ uv sync --no-dev 2>/dev/null || uv pip install -e . 2>/dev/null || true
 # Copy configs
 echo "--- Copying configuration ---"
 mkdir -p /etc/mediamtx
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cp "$SCRIPT_DIR/../config/mediamtx.yml" /etc/mediamtx/mediamtx.yml
+cp "$PROJECT_DIR/config/mediamtx.yml" /etc/mediamtx/mediamtx.yml
 
 if [[ ! -f "$CONFIG_DIR/pi-webcam.env" ]]; then
-    cp "$SCRIPT_DIR/../config/pi-webcam.env.example" "$CONFIG_DIR/pi-webcam.env"
+    cp "$PROJECT_DIR/config/pi-webcam.env.example" "$CONFIG_DIR/pi-webcam.env"
     echo "Created $CONFIG_DIR/pi-webcam.env from example (edit as needed)"
 fi
 
 # Install systemd services
 echo "--- Installing systemd services ---"
-cp "$SCRIPT_DIR/mediamtx.service" /etc/systemd/system/
-cp "$SCRIPT_DIR/pi-webcam.service" /etc/systemd/system/
+cp "$PROJECT_DIR/deploy/mediamtx.service" /etc/systemd/system/
+cp "$PROJECT_DIR/deploy/pi-webcam.service" /etc/systemd/system/
 
 # Journal limits
 mkdir -p /etc/systemd/journald.conf.d
