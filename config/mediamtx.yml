@@ -1,0 +1,23 @@
+# MediaMTX configuration for Pi Webcam
+logLevel: warn
+
+# Protocol endpoints
+rtspAddress: :8554
+webrtcAddress: :8889
+hlsAddress: :8888
+
+paths:
+  cam:
+    source: rpiCamera
+    rpiCameraWidth: 1280
+    rpiCameraHeight: 720
+    rpiCameraFPS: 15
+    rpiCameraIDRPeriod: 30
+    rpiCameraCodec: h264
+    rpiCameraBitrate: 2500000
+    rpiCameraAfMode: continuous
+    rpiCameraTextOverlayEnable: true
+    rpiCameraTextOverlay: "%Y-%m-%d %H:%M:%S"
+    # For wildlife (quieter, no AF motor clicks):
+    # rpiCameraAfMode: manual
+    # rpiCameraLensPosition: 0.0

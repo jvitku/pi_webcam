@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pi Webcam</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>Pi Webcam</h1>
+        <div id="status" class="status">Connecting...</div>
+    </header>
+
+    <main>
+        <section id="live-section">
+            <h2>Live Stream</h2>
+            <div class="video-container">
+                <video id="live-video" autoplay muted playsinline></video>
+                <div id="stream-error" class="error hidden">
+                    Stream unavailable. <button onclick="initStream()">Retry</button>
+                </div>
+            </div>
+        </section>
+
+        <section id="timeline-section">
+            <h2>Timeline</h2>
+            <div class="controls">
+                <input type="date" id="date-picker">
+                <span id="time-display">--:--:--</span>
+                <span id="frame-count">0 frames</span>
+            </div>
+            <div class="slider-container">
+                <input type="range" id="time-slider" min="0" max="86399" value="0" step="1">
+            </div>
+            <div class="nav-buttons">
+                <button id="btn-prev" title="Previous frame">&larr;</button>
+                <button id="btn-play" title="Play/Pause">Play</button>
+                <button id="btn-next" title="Next frame">&rarr;</button>
+            </div>
+            <div class="frame-container">
+                <img id="frame-image" alt="Captured frame">
+                <div id="frame-info" class="frame-info"></div>
+                <div id="no-frames" class="placeholder">No frames for this day</div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const WEBRTC_URL = "{{ webrtc_url }}";
+        const HLS_URL = "{{ hls_url }}";
+    </script>
+    <script src="/static/app.js"></script>
+</body>
+</html>

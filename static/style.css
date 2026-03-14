@@ -1,0 +1,188 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0 1rem;
+    border-bottom: 1px solid #333;
+    margin-bottom: 1rem;
+}
+
+h1 { font-size: 1.4rem; color: #fff; }
+h2 { font-size: 1.1rem; margin-bottom: 0.5rem; color: #ccc; }
+
+.status {
+    font-size: 0.85rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    background: #333;
+}
+.status.online { background: #1b5e20; }
+.status.error { background: #b71c1c; }
+
+section { margin-bottom: 1.5rem; }
+
+.video-container {
+    position: relative;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    aspect-ratio: 16/9;
+}
+
+video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+    flex-wrap: wrap;
+}
+
+input[type="date"] {
+    background: #2a2a3e;
+    color: #e0e0e0;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.9rem;
+}
+
+#time-display {
+    font-family: monospace;
+    font-size: 1.2rem;
+    color: #fff;
+    min-width: 5em;
+}
+
+#frame-count {
+    font-size: 0.85rem;
+    color: #888;
+    margin-left: auto;
+}
+
+.slider-container {
+    padding: 0.5rem 0;
+}
+
+input[type="range"] {
+    width: 100%;
+    height: 6px;
+    -webkit-appearance: none;
+    background: #333;
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #4fc3f7;
+    cursor: pointer;
+}
+
+.nav-buttons {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.nav-buttons button {
+    background: #2a2a3e;
+    color: #e0e0e0;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 0.4rem 1rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.nav-buttons button:hover { background: #3a3a5e; }
+
+.frame-container {
+    position: relative;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.frame-container img {
+    max-width: 100%;
+    max-height: 70vh;
+    display: none;
+}
+
+.frame-container img.visible { display: block; }
+
+.frame-info {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0,0,0,0.7);
+    padding: 0.3rem 0.75rem;
+    font-size: 0.8rem;
+    font-family: monospace;
+}
+
+.placeholder {
+    color: #666;
+    font-size: 1rem;
+    padding: 3rem;
+}
+
+.hidden { display: none !important; }
+
+.error {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background: rgba(0,0,0,0.85);
+    color: #f44;
+    font-size: 0.9rem;
+}
+
+.error button {
+    background: #333;
+    color: #fff;
+    border: none;
+    padding: 0.4rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+@media (max-width: 600px) {
+    body { padding: 0.5rem; }
+    h1 { font-size: 1.1rem; }
+    .controls { gap: 0.5rem; }
+}

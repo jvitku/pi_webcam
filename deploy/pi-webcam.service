@@ -1,0 +1,18 @@
+[Unit]
+Description=Pi Webcam Application
+After=mediamtx.service
+Requires=mediamtx.service
+
+[Service]
+# Wait for RTSP stream to be available (up to 30s)
+ExecStartPre=/bin/bash -c 'for i in $(seq 1 30); do ffprobe -v quiet -i rtsp://localhost:8554/cam -t 1 && exit 0; sleep 1; done; echo "RTSP not ready after 30s"; exit 1'
+ExecStart=/usr/local/bin/uv run --project /opt/pi_webcam uvicorn pi_webcam.main:create_app --factory --host 0.0.0.0 --port 8080 --workers 1
+WorkingDirectory=/opt/pi_webcam
+Restart=always
+RestartSec=5
+Nice=10
+TimeoutStopSec=10
+EnvironmentFile=/etc/pi_webcam/pi-webcam.env
+
+[Install]
+WantedBy=multi-user.target
