@@ -425,74 +425,12 @@ function initCameraControls() {
         debouncedCamera({ saturation: parseFloat(satSlider.value) });
     });
 
-    // Tap to focus on settings video
-    const settingsContainer = document.getElementById("settings-video-container");
-    settingsContainer.addEventListener("click", onVideoTap);
 }
 
 function onSegChange(controlId, value) {
-    if (controlId === "af-mode") {
-        const lensRow = document.getElementById("lens-row");
-        const tapHint = document.getElementById("tap-hint");
-        lensRow.style.display = value === "manual" ? "flex" : "none";
-        tapHint.textContent = value === "manual" ? "Tap to set focus" :
-            "Tap to set focus area";
-        sendCamera({ afMode: value });
-    } else if (controlId === "metering-mode") {
-        document.getElementById("tap-hint").textContent =
-            value === "spot" ? "Tap to set metering point" : "";
+    if (controlId === "metering-mode") {
         sendCamera({ metering: value });
     }
-}
-
-function onVideoTap(e) {
-    const container = e.currentTarget;
-    const rect = container.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
-
-    // Show indicator at tap point
-    const indicator = document.getElementById("focus-indicator");
-    indicator.style.left = `${x * 100}%`;
-    indicator.style.top = `${y * 100}%`;
-    indicator.classList.remove("hidden", "show");
-    void indicator.offsetWidth; // force reflow
-    indicator.classList.add("show");
-    setTimeout(() => indicator.classList.remove("show"), 1000);
-
-    const afMode = document.querySelector("#af-mode button.active").dataset.val;
-    const metering = document.querySelector("#metering-mode button.active").dataset.val;
-
-    // ROI region around tap point (20% window)
-    const hw = 0.1;
-    const rx = Math.max(0, x - hw);
-    const ry = Math.max(0, y - hw);
-    const rw = Math.min(hw * 2, 1 - rx);
-    const rh = Math.min(hw * 2, 1 - ry);
-    const roi = `${rx.toFixed(3)},${ry.toFixed(3)},${rw.toFixed(3)},${rh.toFixed(3)}`;
-
-    const updates = {};
-
-    // Set metering ROI (works for spot metering, safe — no stream restart)
-    if (metering === "spot") {
-        updates.roi = roi;
-    }
-
-    // Focus controls
-    if (afMode === "manual") {
-        // Set lens position from tap position
-        const dist = Math.sqrt((x - 0.5) ** 2 + (y - 0.5) ** 2);
-        const lens = dist * 10;
-        document.getElementById("lens-position").value = lens;
-        document.getElementById("lens-value").textContent =
-            lens === 0 ? "\u221e" : `${(1/lens).toFixed(2)}m`;
-        updates.lensPosition = lens;
-    } else {
-        // Auto/continuous: set AF window (may cause brief stream restart)
-        updates.afWindow = roi;
-    }
-
-    sendCamera(updates);
 }
 
 function debouncedCamera(settings) {
@@ -519,22 +457,9 @@ async function loadCameraSettings() {
         if (data.error) return;
 
         // AF mode
-        const afBtns = document.querySelectorAll("#af-mode button");
-        afBtns.forEach(b => b.classList.toggle("active", b.dataset.val === data.afMode));
-        document.getElementById("lens-row").style.display = data.afMode === "manual" ? "flex" : "none";
-
-        // Lens
-        if (data.lensPosition != null) {
-            document.getElementById("lens-position").value = data.lensPosition;
-            const v = data.lensPosition;
-            document.getElementById("lens-value").textContent = v === 0 ? "\u221e" : `${(1/v).toFixed(2)}m`;
-        }
-
         // Metering
         const metBtns = document.querySelectorAll("#metering-mode button");
         metBtns.forEach(b => b.classList.toggle("active", b.dataset.val === data.metering));
-        document.getElementById("tap-hint").textContent =
-            data.metering === "spot" ? "Tap to set metering point" : "";
 
         // EV
         if (data.ev != null) {
@@ -564,12 +489,8 @@ async function loadCameraSettings() {
 
 async function resetCameraDefaults() {
     await sendCamera({
-        afMode: "continuous",
-        lensPosition: 0,
-        afWindow: "",
         ev: 0,
         metering: "centre",
-        roi: "",
         brightness: 0,
         contrast: 1,
         saturation: 1,
