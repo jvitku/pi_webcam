@@ -65,21 +65,7 @@
                 </div>
                 <video id="settings-video" autoplay muted playsinline></video>
                 <div id="focus-indicator" class="focus-indicator hidden"></div>
-                <div class="tap-hint" id="tap-hint">Tap to focus</div>
-            </div>
-        </section>
-
-        <section class="settings-group">
-            <h3>Capture</h3>
-            <div class="setting-row">
-                <label>Save rate</label>
-                <select id="fps-select">
-                    <option value="0.1">1 frame / 10s</option>
-                    <option value="0.2">1 frame / 5s</option>
-                    <option value="0.33">1 frame / 3s</option>
-                    <option value="0.5">1 frame / 2s (max)</option>
-                </select>
-                <span id="fps-status" class="setting-status"></span>
+                <div class="tap-hint" id="tap-hint"></div>
             </div>
         </section>
 
@@ -133,6 +119,19 @@
                 <label>Saturation</label>
                 <input type="range" id="saturation-slider" min="0" max="3" step="0.1" value="1">
                 <span id="saturation-value" class="setting-value">1.0</span>
+            </div>
+        </section>
+        <section class="settings-group">
+            <h3>Capture</h3>
+            <div class="setting-row">
+                <label>Save rate</label>
+                <select id="fps-select">
+                    <option value="0.1">1 frame / 10s</option>
+                    <option value="0.2">1 frame / 5s</option>
+                    <option value="0.33">1 frame / 3s</option>
+                    <option value="0.5">1 frame / 2s (max)</option>
+                </select>
+                <span id="fps-status" class="setting-status"></span>
             </div>
         </section>
     </main>

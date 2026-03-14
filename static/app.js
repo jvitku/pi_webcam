@@ -435,10 +435,17 @@ function onSegChange(controlId, value) {
         const lensRow = document.getElementById("lens-row");
         const tapHint = document.getElementById("tap-hint");
         lensRow.style.display = value === "manual" ? "flex" : "none";
-        tapHint.textContent = value === "manual" ? "Tap to focus" :
-            value === "auto" ? "Tap to focus" : "";
-        sendCamera({ afMode: value });
+        tapHint.textContent = "";
+        // AF mode change requires stream restart — warn user
+        if (confirm(`Change focus to "${value}"? This briefly restarts the stream.`)) {
+            sendCamera({ afMode: value });
+        } else {
+            // Revert button state
+            loadCameraSettings();
+        }
     } else if (controlId === "metering-mode") {
+        document.getElementById("tap-hint").textContent =
+            value === "spot" ? "Tap to set metering point" : "";
         sendCamera({ metering: value });
     }
 }
@@ -449,7 +456,7 @@ function onVideoTap(e) {
     const x = (e.clientX - rect.left) / rect.width;
     const y = (e.clientY - rect.top) / rect.height;
 
-    // Show focus indicator
+    // Show indicator at tap point
     const indicator = document.getElementById("focus-indicator");
     indicator.style.left = `${x * 100}%`;
     indicator.style.top = `${y * 100}%`;
@@ -458,27 +465,36 @@ function onVideoTap(e) {
     indicator.classList.add("show");
     setTimeout(() => indicator.classList.remove("show"), 1000);
 
-    // Get current AF mode
     const afMode = document.querySelector("#af-mode button.active").dataset.val;
+    const metering = document.querySelector("#metering-mode button.active").dataset.val;
 
-    // Set focus window around tap point (10% window)
-    const hw = 0.05;
-    const wx = Math.max(0, x - hw);
-    const wy = Math.max(0, y - hw);
-    const ww = Math.min(hw * 2, 1 - wx);
-    const wh = Math.min(hw * 2, 1 - wy);
-    const afWin = `${wx.toFixed(3)},${wy.toFixed(3)},${ww.toFixed(3)},${wh.toFixed(3)}`;
+    // ROI region around tap point (20% window)
+    const hw = 0.1;
+    const rx = Math.max(0, x - hw);
+    const ry = Math.max(0, y - hw);
+    const rw = Math.min(hw * 2, 1 - rx);
+    const rh = Math.min(hw * 2, 1 - ry);
+    const roi = `${rx.toFixed(3)},${ry.toFixed(3)},${rw.toFixed(3)},${rh.toFixed(3)}`;
 
+    const updates = {};
+
+    // Set metering ROI (works for spot metering, safe — no stream restart)
+    if (metering === "spot") {
+        updates.roi = roi;
+    }
+
+    // In manual focus mode, set lens position from tap
     if (afMode === "manual") {
-        // In manual mode, estimate lens position from tap (center = far, edges = near)
         const dist = Math.sqrt((x - 0.5) ** 2 + (y - 0.5) ** 2);
-        const lens = dist * 10; // rough mapping
+        const lens = dist * 10;
         document.getElementById("lens-position").value = lens;
-        document.getElementById("lens-value").textContent = lens === 0 ? "\u221e" : `${(1/lens).toFixed(2)}m`;
-        sendCamera({ lensPosition: lens });
-    } else {
-        // Set AF window only — don't change AF mode to avoid stream crash
-        sendCamera({ afWindow: afWin });
+        document.getElementById("lens-value").textContent =
+            lens === 0 ? "\u221e" : `${(1/lens).toFixed(2)}m`;
+        updates.lensPosition = lens;
+    }
+
+    if (Object.keys(updates).length > 0) {
+        sendCamera(updates);
     }
 }
 
@@ -520,6 +536,8 @@ async function loadCameraSettings() {
         // Metering
         const metBtns = document.querySelectorAll("#metering-mode button");
         metBtns.forEach(b => b.classList.toggle("active", b.dataset.val === data.metering));
+        document.getElementById("tap-hint").textContent =
+            data.metering === "spot" ? "Tap to set metering point" : "";
 
         // EV
         if (data.ev != null) {

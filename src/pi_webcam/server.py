@@ -342,6 +342,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "afWindow": "rpiCameraAfWindow",
             "ev": "rpiCameraEV",
             "metering": "rpiCameraMetering",
+            "roi": "rpiCameraROI",
             "brightness": "rpiCameraBrightness",
             "contrast": "rpiCameraContrast",
             "saturation": "rpiCameraSaturation",
