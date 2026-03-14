@@ -435,14 +435,9 @@ function onSegChange(controlId, value) {
         const lensRow = document.getElementById("lens-row");
         const tapHint = document.getElementById("tap-hint");
         lensRow.style.display = value === "manual" ? "flex" : "none";
-        tapHint.textContent = "";
-        // AF mode change requires stream restart — warn user
-        if (confirm(`Change focus to "${value}"? This briefly restarts the stream.`)) {
-            sendCamera({ afMode: value });
-        } else {
-            // Revert button state
-            loadCameraSettings();
-        }
+        tapHint.textContent = value === "manual" ? "Tap to set focus" :
+            "Tap to set focus area";
+        sendCamera({ afMode: value });
     } else if (controlId === "metering-mode") {
         document.getElementById("tap-hint").textContent =
             value === "spot" ? "Tap to set metering point" : "";
@@ -483,19 +478,21 @@ function onVideoTap(e) {
         updates.roi = roi;
     }
 
-    // In manual focus mode, set lens position from tap
+    // Focus controls
     if (afMode === "manual") {
+        // Set lens position from tap position
         const dist = Math.sqrt((x - 0.5) ** 2 + (y - 0.5) ** 2);
         const lens = dist * 10;
         document.getElementById("lens-position").value = lens;
         document.getElementById("lens-value").textContent =
             lens === 0 ? "\u221e" : `${(1/lens).toFixed(2)}m`;
         updates.lensPosition = lens;
+    } else {
+        // Auto/continuous: set AF window (may cause brief stream restart)
+        updates.afWindow = roi;
     }
 
-    if (Object.keys(updates).length > 0) {
-        sendCamera(updates);
-    }
+    sendCamera(updates);
 }
 
 function debouncedCamera(settings) {
@@ -561,6 +558,23 @@ async function loadCameraSettings() {
     } catch (e) {
         console.error("Failed to load camera settings:", e);
     }
+}
+
+// --- Reset ---
+
+async function resetCameraDefaults() {
+    await sendCamera({
+        afMode: "continuous",
+        lensPosition: 0,
+        afWindow: "",
+        ev: 0,
+        metering: "centre",
+        roi: "",
+        brightness: 0,
+        contrast: 1,
+        saturation: 1,
+    });
+    await loadCameraSettings();
 }
 
 // --- Auto-refresh ---

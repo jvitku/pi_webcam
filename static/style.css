@@ -262,6 +262,22 @@ video {
     font-weight: 500;
 }
 
+.reset-btn {
+    width: 100%;
+    padding: 0.5rem;
+    background: none;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    color: var(--red);
+    font-size: 0.82rem;
+    font-family: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.reset-btn:hover { background: rgba(248,113,113,0.08); }
+
 /* Segmented control */
 .seg-control {
     display: flex;

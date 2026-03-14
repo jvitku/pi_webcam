@@ -7,7 +7,7 @@ set -euo pipefail
 # Resolve project root (parent of the directory containing this script)
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-MEDIAMTX_VERSION="1.12.0"
+MEDIAMTX_VERSION="1.16.3"
 MEDIAMTX_URL="https://github.com/bluenviron/mediamtx/releases/download/v${MEDIAMTX_VERSION}/mediamtx_v${MEDIAMTX_VERSION}_linux_arm64v8.tar.gz"
 INSTALL_DIR="/opt/pi_webcam"
 DATA_DIR="/data/pi_webcam"
