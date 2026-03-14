@@ -368,6 +368,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 if r.status_code != 200:
                     return {"error": "Cannot read current config"}
                 current = r.json()
+                # Remove read-only / identity fields that trigger
+                # a full pipeline restart if included
+                current.pop("name", None)
                 current.update(mtx_body)
 
                 r2 = await client.post(

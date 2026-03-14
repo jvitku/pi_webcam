@@ -467,7 +467,7 @@ function onVideoTap(e) {
     const wy = Math.max(0, y - hw);
     const ww = Math.min(hw * 2, 1 - wx);
     const wh = Math.min(hw * 2, 1 - wy);
-    const window = `${wx.toFixed(3)},${wy.toFixed(3)},${ww.toFixed(3)},${wh.toFixed(3)}`;
+    const afWin = `${wx.toFixed(3)},${wy.toFixed(3)},${ww.toFixed(3)},${wh.toFixed(3)}`;
 
     if (afMode === "manual") {
         // In manual mode, estimate lens position from tap (center = far, edges = near)
@@ -477,8 +477,8 @@ function onVideoTap(e) {
         document.getElementById("lens-value").textContent = lens === 0 ? "\u221e" : `${(1/lens).toFixed(2)}m`;
         sendCamera({ lensPosition: lens });
     } else {
-        // Auto/continuous: set AF window and trigger
-        sendCamera({ afMode: "auto", afWindow: window });
+        // Set AF window only — don't change AF mode to avoid stream crash
+        sendCamera({ afWindow: afWin });
     }
 }
 
