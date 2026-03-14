@@ -284,7 +284,7 @@ sudo systemctl status mediamtx pi-webcam
 
 ```bash
 cd ~/pi_webcam
-git pull
+git pull -r
 sudo bash deploy/install.sh
 ```
 
@@ -299,6 +299,20 @@ rsync -avz --exclude '.venv' --exclude '__pycache__' --exclude '.git' \
 # Then on the Pi:
 cd ~/pi_webcam
 sudo bash deploy/install.sh
+```
+
+## Development
+
+Quick deploy after code changes (on the Pi):
+
+```bash
+cd ~/pi_webcam && git pull -r && sudo cp -r static /opt/pi_webcam/ && sudo systemctl restart pi-webcam
+```
+
+For full redeploy (dependencies changed, service files updated, etc.):
+
+```bash
+cd ~/pi_webcam && git pull -r && sudo bash deploy/install.sh
 ```
 
 ## Architecture
