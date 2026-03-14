@@ -31,8 +31,13 @@ let debounceTimer = null;
 
 // --- Initialization ---
 
+function localDateStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
 function init() {
-    const today = new Date().toISOString().split("T")[0];
+    const today = localDateStr();
     datePicker.value = today;
 
     datePicker.addEventListener("change", () => loadDay(datePicker.value));
@@ -174,7 +179,7 @@ function toggleSettingsFullscreen() {
 // --- Timeline ---
 
 async function loadDay(dateStr) {
-    const dayStart = new Date(dateStr + "T00:00:00Z").getTime() / 1000;
+    const dayStart = new Date(dateStr + "T00:00:00").getTime() / 1000;
     const dayEnd = dayStart + 86399;
 
     try {
@@ -501,10 +506,10 @@ async function resetCameraDefaults() {
 // --- Auto-refresh ---
 
 async function pollNewFrames() {
-    const today = new Date().toISOString().split("T")[0];
+    const today = localDateStr();
     if (datePicker.value !== today) return;
 
-    const dayStart = new Date(today + "T00:00:00Z").getTime() / 1000;
+    const dayStart = new Date(today + "T00:00:00").getTime() / 1000;
     const dayEnd = dayStart + 86399;
 
     try {
