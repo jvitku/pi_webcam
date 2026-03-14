@@ -359,17 +359,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         try:
             async with httpx.AsyncClient() as client:
-                r = await client.patch(
+                # Read current config, merge changes, replace
+                r = await client.get(
                     f"{settings.mediamtx_api_url}"
-                    "/v3/config/paths/edit/cam",
-                    json=mtx_body,
+                    "/v3/config/paths/get/cam",
                     timeout=5,
                 )
-                if r.status_code == 200:
+                if r.status_code != 200:
+                    return {"error": "Cannot read current config"}
+                current = r.json()
+                current.update(mtx_body)
+
+                r2 = await client.post(
+                    f"{settings.mediamtx_api_url}"
+                    "/v3/config/paths/replace/cam",
+                    json=current,
+                    timeout=5,
+                )
+                if r2.status_code == 200:
                     return {"applied": mtx_body}
                 return {
-                    "error": f"MediaMTX returned {r.status_code}",
-                    "detail": r.text,
+                    "error": f"MediaMTX returned {r2.status_code}",
+                    "detail": r2.text,
                 }
         except httpx.HTTPError as exc:
             raise HTTPException(
