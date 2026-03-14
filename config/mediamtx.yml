@@ -13,7 +13,7 @@ paths:
     rpiCameraHeight: 720
     rpiCameraFPS: 15
     rpiCameraIDRPeriod: 30
-    rpiCameraCodec: h264
+    rpiCameraCodec: auto
     rpiCameraBitrate: 2500000
     rpiCameraAfMode: continuous
     rpiCameraTextOverlayEnable: true
