@@ -101,6 +101,10 @@ class CaptureWorker:
         self._stop_event.clear()
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
+        # Remove stale latest.jpg to avoid ffmpeg permission errors
+        latest = self.output_dir / "latest.jpg"
+        latest.unlink(missing_ok=True)
+
         # Seed known files from existing directory contents
         self._known_files = {
             str(p) for p in self.output_dir.rglob("*.jpg") if "thumb" not in str(p)
