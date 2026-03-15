@@ -431,6 +431,7 @@ function showFrameFromSampled(idx) {
     currentIndex = idx;
     detailFrames = [];
     detailIdx = -1;
+    detailGeneration++;
     detailLoading = false;
     const frame = currentFrames[idx];
     displayFrame(frame, "");
