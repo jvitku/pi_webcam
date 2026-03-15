@@ -249,7 +249,7 @@ let filmIdxEnd = 0;
 let detailFrames = [];
 let detailIdx = -1;
 let detailLoading = false;
-const DETAIL_SIZE = 200;
+const DETAIL_WINDOW_SEC = 600; // 10 minutes of frames per window
 
 function initScrub() {
     const el = document.getElementById("scrub-slider");
@@ -291,12 +291,10 @@ function initScrub() {
 async function loadDetailWindow(centerEpoch) {
     if (detailLoading) return;
     detailLoading = true;
-    const halfSec = DETAIL_SIZE; // ~200 frames at 0.5fps = ~400 seconds
-    const start = centerEpoch - halfSec;
-    const end = centerEpoch + halfSec;
+    const half = DETAIL_WINDOW_SEC / 2;
     try {
         const res = await fetch(
-            `/api/frames?start=${start}&end=${end}&limit=${DETAIL_SIZE * 2}`
+            `/api/frames?start=${centerEpoch - half}&end=${centerEpoch + half}&limit=5000`
         );
         const data = await res.json();
         detailFrames = data.frames;
@@ -313,14 +311,10 @@ async function loadDetailWindow(centerEpoch) {
     detailLoading = false;
 }
 
-function needsDetailRefresh(epoch) {
-    if (detailFrames.length === 0) return true;
-    const first = detailFrames[0].captured_at;
-    const last = detailFrames[detailFrames.length - 1].captured_at;
-    // Need refresh if outside or near edge (within 20%)
-    const range = last - first;
-    const margin = range * 0.2;
-    return epoch < first + margin || epoch > last - margin;
+function detailHasFrame(epoch) {
+    if (detailFrames.length === 0) return false;
+    return epoch >= detailFrames[0].captured_at &&
+           epoch <= detailFrames[detailFrames.length - 1].captured_at;
 }
 
 // --- Filmstrip ---
@@ -460,8 +454,9 @@ async function stepFrame(delta) {
     displayFrame(frame, `${detailIdx + 1}/${detailFrames.length}`);
     syncSliderToEpoch(frame.captured_at);
 
-    // Prefetch if near edge
-    if (needsDetailRefresh(frame.captured_at)) {
+    // Prefetch if near edge (within last 20% of window)
+    const pctThrough = detailIdx / detailFrames.length;
+    if (pctThrough > 0.8 || pctThrough < 0.2) {
         loadDetailWindow(frame.captured_at);
     }
 }
@@ -495,14 +490,15 @@ async function playNext() {
     }
 
     const skip = getPlaySkip();
-    let nextIdx = Math.min(detailIdx + skip, detailFrames.length - 1);
+    let nextIdx = detailIdx + skip;
 
-    if (nextIdx <= detailIdx) {
-        // At end — try to load more
+    // If past end, try to load next window
+    if (nextIdx >= detailFrames.length) {
         const lastEpoch = detailFrames[detailFrames.length - 1].captured_at;
-        await loadDetailWindow(lastEpoch + DETAIL_SIZE / 2);
-        nextIdx = Math.min(detailIdx + skip, detailFrames.length - 1);
-        if (nextIdx <= detailIdx) { togglePlay(); return; }
+        await loadDetailWindow(lastEpoch);
+        // After reload, detailIdx is near the start of new window
+        nextIdx = detailIdx + skip;
+        if (nextIdx >= detailFrames.length) { togglePlay(); return; }
     }
 
     const frame = detailFrames[nextIdx];
@@ -522,8 +518,8 @@ async function playNext() {
         frameInfo.textContent = `${dt.toLocaleTimeString()} | ${sizeKb} | ${nextIdx + 1}/${detailFrames.length}`;
         syncSliderToEpoch(frame.captured_at);
 
-        // Prefetch more detail frames if near edge
-        if (needsDetailRefresh(frame.captured_at)) {
+        // Prefetch if past 80% of window
+        if (nextIdx > detailFrames.length * 0.8) {
             loadDetailWindow(frame.captured_at);
         }
 
