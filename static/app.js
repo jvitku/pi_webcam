@@ -258,18 +258,23 @@ function initScrub() {
     });
     scrubSlider = el.noUiSlider;
 
+    // "slide" fires continuously during drag — show thumbnail (fast)
     scrubSlider.on("slide", (values) => {
         if (scrubUpdating) return;
+        if (playing) togglePlay(); // stop playback if user grabs slider
         const idx = Math.round(parseFloat(values[0]));
         if (idx >= 0 && idx < currentFrames.length) {
             showFrameThumb(idx);
         }
     });
 
+    // "change" fires on release — load full image + rebuild filmstrip
     scrubSlider.on("change", (values) => {
+        if (scrubUpdating) return;
         const idx = Math.round(parseFloat(values[0]));
         if (idx >= 0 && idx < currentFrames.length) {
             showFrame(idx);
+            rebuildFilmstrip(idx);
         }
     });
 }
