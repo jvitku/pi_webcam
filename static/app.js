@@ -242,8 +242,8 @@ function buildThumbStrip() {
     const strip = document.getElementById("thumb-strip");
     strip.innerHTML = "";
 
-    // Show ~30 evenly-spaced thumbnails
-    const maxThumbs = 30;
+    // Show ~40 evenly-spaced thumbnails
+    const maxThumbs = 40;
     const step = Math.max(1, Math.floor(currentFrames.length / maxThumbs));
 
     for (let i = 0; i < currentFrames.length; i += step) {
@@ -253,10 +253,22 @@ function buildThumbStrip() {
         div.dataset.idx = i;
 
         const img = document.createElement("img");
-        const src = frame.thumb_path ? `/thumbs/${frame.thumb_path}` : `/images/${frame.file_path}`;
+        const src = frame.thumb_path
+            ? `/thumbs/${frame.thumb_path}`
+            : `/images/${frame.file_path}`;
         img.src = src;
         img.loading = "lazy";
+        img.draggable = false;
         div.appendChild(img);
+
+        // Time label on every ~5th thumbnail
+        const thumbIdx = Math.round(i / step);
+        if (thumbIdx % 5 === 0) {
+            const t = document.createElement("span");
+            t.className = "thumb-time";
+            t.textContent = fmtTime(new Date(frame.captured_at * 1000));
+            div.appendChild(t);
+        }
 
         div.addEventListener("click", () => {
             showFrame(parseInt(div.dataset.idx));
@@ -264,6 +276,39 @@ function buildThumbStrip() {
 
         strip.appendChild(div);
     }
+
+    // Desktop drag scrolling
+    initDragScroll(strip);
+}
+
+function initDragScroll(el) {
+    let isDown = false;
+    let startX = 0;
+    let scrollLeft = 0;
+
+    el.addEventListener("mousedown", (e) => {
+        isDown = true;
+        el.classList.add("dragging");
+        startX = e.pageX - el.offsetLeft;
+        scrollLeft = el.scrollLeft;
+    });
+
+    el.addEventListener("mouseleave", () => {
+        isDown = false;
+        el.classList.remove("dragging");
+    });
+
+    el.addEventListener("mouseup", () => {
+        isDown = false;
+        el.classList.remove("dragging");
+    });
+
+    el.addEventListener("mousemove", (e) => {
+        if (!isDown) return;
+        e.preventDefault();
+        const x = e.pageX - el.offsetLeft;
+        el.scrollLeft = scrollLeft - (x - startX);
+    });
 }
 
 function highlightThumb(idx) {
@@ -310,8 +355,8 @@ function showFrame(idx) {
     };
 
     const dt = new Date(frame.captured_at * 1000);
-    const sizeKb = frame.file_size ? `${Math.round(frame.file_size / 1024)} KB` : "";
-    frameInfo.textContent = `${dt.toLocaleString()} | ${sizeKb} | ${idx + 1}/${currentFrames.length}`;
+    const sizeKb = frame.file_size ? `${Math.round(frame.file_size / 1024)}KB` : "";
+    frameInfo.textContent = `${sizeKb}  ${idx + 1}/${currentFrames.length}`;
 }
 
 function showThumbnail(idx) {
