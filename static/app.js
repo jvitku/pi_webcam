@@ -487,6 +487,10 @@ function togglePlay() {
     } else {
         playing = true;
         btnPlay.textContent = "\u23F8";
+        detailFrames = [];
+        detailIdx = -1;
+        detailGeneration++;
+        detailLoading = false;
         playNext();
     }
 }
@@ -496,13 +500,10 @@ function getPlaySkip() {
 }
 
 function onPlaySpeedChange() {
-    if (detailFrames.length === 0 || detailIdx < 0) return;
-    const epoch = detailFrames[detailIdx].captured_at;
-    syncSliderToEpoch(epoch);
-    detailFrames = [];
-    detailIdx = -1;
-    detailGeneration++; // cancel any in-flight prefetch
-    detailLoading = false; // reset so next load can proceed
+    if (!playing) return;
+    // Simply restart playback — stop and start again
+    togglePlay();
+    togglePlay();
 }
 
 async function playNext() {
