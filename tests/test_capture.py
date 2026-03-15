@@ -67,9 +67,10 @@ class TestBuildFfmpegCommand:
         assert "-rtsp_transport" in cmd
         assert "tcp" in cmd
         assert settings.rtsp_url in cmd
-        assert "-strftime" in cmd
+        assert "-update" in cmd
         assert "-f" in cmd
         assert "image2" in cmd
+        assert "latest.jpg" in cmd[-1]
 
     def test_custom_fps(self, settings: Settings) -> None:
         custom = Settings(
@@ -90,49 +91,30 @@ class TestBuildFfmpegCommand:
         assert "fps=0.5" in " ".join(cmd)
 
 
-class TestCaptureWorkerRegister:
-    def test_register_frame(self, settings: Settings, db: Database) -> None:
+class TestCaptureWorkerCapture:
+    def test_capture_latest(self, settings: Settings, db: Database) -> None:
         worker = CaptureWorker(settings, db)
 
-        # Create a JPEG file in the output dir with proper name
+        # Create a latest.jpg in the output dir
         img = Image.new("RGB", (100, 100), color=(255, 0, 0))
-        file_path = settings.frames_dir / "20260314_120000.jpg"
-        img.save(file_path, "JPEG")
+        latest = settings.frames_dir / "latest.jpg"
+        img.save(latest, "JPEG")
 
-        worker._register_frame(file_path)
+        worker._capture_latest(latest)
 
         assert worker.frames_captured == 1
         frame = db.get_latest_frame()
         assert frame is not None
-        assert frame["filename"] == "20260314_120000.jpg"
-        assert frame["file_path"] == "2026/03/14/120000.jpg"
+        assert frame["file_size"] > 0
 
-        # Check that file was moved to date-based directory
-        moved = settings.frames_dir / "2026" / "03" / "14" / "120000.jpg"
-        assert moved.exists()
-        assert not file_path.exists()
-
-    def test_register_invalid_filename(self, settings: Settings, db: Database) -> None:
+    def test_skip_empty_file(self, settings: Settings, db: Database) -> None:
         worker = CaptureWorker(settings, db)
-        file_path = settings.frames_dir / "invalid_name.jpg"
-        file_path.write_bytes(b"fake")
+        latest = settings.frames_dir / "latest.jpg"
+        latest.write_bytes(b"")
 
-        worker._register_frame(file_path)
+        worker._capture_latest(latest)
         assert worker.frames_captured == 0
         assert db.get_frame_count() == 0
-
-    def test_scan_and_register(self, settings: Settings, db: Database) -> None:
-        worker = CaptureWorker(settings, db)
-
-        # Create multiple JPEG files
-        for i in range(3):
-            img = Image.new("RGB", (100, 100))
-            path = settings.frames_dir / f"20260314_12000{i}.jpg"
-            img.save(path, "JPEG")
-
-        worker._scan_and_register()
-        assert worker.frames_captured == 3
-        assert db.get_frame_count() == 3
 
 
 class TestReconcileFrames:

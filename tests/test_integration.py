@@ -23,14 +23,13 @@ class TestCaptureToAPI:
         """Simulate a capture, verify it appears in the API."""
         worker = CaptureWorker(settings, db)
 
-        # Simulate ffmpeg outputting a file
-        frame_name = "20260314_120000.jpg"
-        frame_path = settings.frames_dir / frame_name
+        # Simulate ffmpeg outputting latest.jpg
+        latest = settings.frames_dir / "latest.jpg"
         img = Image.new("RGB", (1280, 720), color=(100, 200, 50))
-        img.save(frame_path, "JPEG")
+        img.save(latest, "JPEG")
 
-        # Register it (simulates the scan step)
-        worker._register_frame(frame_path)
+        # Register it (simulates the poll step)
+        worker._capture_latest(latest)
 
         # Verify via API
         app = create_app(settings)
@@ -42,13 +41,12 @@ class TestCaptureToAPI:
         data = response.json()
         assert data["total"] == 1
         frame = data["frames"][0]
-        assert frame["filename"] == frame_name
-        assert frame["file_path"] == "2026/03/14/120000.jpg"
+        assert frame["file_size"] > 0
 
         # Should be retrievable as latest
         response = client.get("/api/frames/latest")
         assert response.status_code == 200
-        assert response.json()["filename"] == frame_name
+        assert response.json()["file_size"] > 0
 
         # Image file should be servable
         response = client.get(f"/images/{frame['file_path']}")

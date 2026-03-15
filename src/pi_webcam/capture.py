@@ -71,8 +71,8 @@ def build_ffmpeg_command(settings: Settings, output_dir: Path) -> list[str]:
         "-vf", f"fps={settings.capture_fps}",
         "-q:v", str(settings.jpeg_quality),
         "-f", "image2",
-        "-strftime", "1",
-        str(output_dir / "%Y%m%d_%H%M%S.jpg"),
+        "-update", "1",
+        str(output_dir / "latest.jpg"),
     ]
 
 
@@ -203,50 +203,52 @@ class CaptureWorker:
             self._scan_and_register()
 
     async def _poll_for_files(self) -> None:
-        """Periodically scan output directory for new JPEG files."""
+        """Watch latest.jpg for changes and register new frames."""
+        latest_path = self.output_dir / "latest.jpg"
+        last_mtime = 0.0
+
         while True:
-            self._scan_and_register()
+            try:
+                if latest_path.exists():
+                    mtime = latest_path.stat().st_mtime
+                    if mtime > last_mtime:
+                        last_mtime = mtime
+                        self._capture_latest(latest_path)
+            except OSError:
+                pass
             await asyncio.sleep(0.5)
 
     def _scan_and_register(self) -> None:
-        """Find new JPEG files and register them in the database."""
-        current_files = set()
-        for jpg_path in self.output_dir.rglob("*.jpg"):
-            if "thumb" in str(jpg_path):
-                continue
-            current_files.add(str(jpg_path))
+        """Check for latest.jpg one more time."""
+        latest_path = self.output_dir / "latest.jpg"
+        if latest_path.exists():
+            self._capture_latest(latest_path)
 
-        new_files = current_files - self._known_files
+    def _capture_latest(self, latest_path: Path) -> None:
+        """Copy latest.jpg to a timestamped file and register it."""
+        import shutil
+        import time as _time
 
-        for file_str in sorted(new_files):
-            file_path = Path(file_str)
-            self._register_frame(file_path)
-
-        self._known_files = current_files
-
-    def _register_frame(self, file_path: Path) -> None:
-        """Register a single frame in the database and generate thumbnail."""
-        filename = file_path.name
-        epoch = filename_to_epoch(filename)
-        if epoch is None:
-            logger.warning("Skipping file with invalid name: %s", filename)
-            return
+        now = _time.localtime()
+        filename = _time.strftime("%Y%m%d_%H%M%S", now) + ".jpg"
+        epoch = int(_time.mktime(now))
 
         rel_path = relative_path_for_timestamp(filename)
         if rel_path is None:
             return
 
-        # Move file to date-based directory structure
         dest = self.settings.frames_dir / rel_path
-        if file_path != dest:
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            try:
-                file_path.rename(dest)
-            except OSError:
-                logger.warning("Failed to move %s to %s", file_path, dest)
-                return
+        dest.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            shutil.copy2(str(latest_path), str(dest))
+        except OSError:
+            return
 
         file_size = dest.stat().st_size if dest.exists() else None
+        if file_size == 0:
+            dest.unlink(missing_ok=True)
+            return
 
         # Generate thumbnail
         thumb_rel = thumb_relative_path(rel_path)
