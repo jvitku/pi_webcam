@@ -180,6 +180,11 @@ async function loadDay(dateStr) {
     const dayStart = new Date(dateStr + "T00:00:00").getTime() / 1000;
     const dayEnd = dayStart + 86399;
 
+    // Show loading state
+    noFrames.textContent = "Loading...";
+    noFrames.classList.remove("hidden");
+    frameImage.classList.remove("visible");
+
     try {
         const res = await fetch(`/api/frames?start=${dayStart}&end=${dayEnd}&limit=1000`);
         const data = await res.json();
@@ -187,7 +192,7 @@ async function loadDay(dateStr) {
         frameCount.textContent = `${data.total}`;
 
         if (currentFrames.length === 0) {
-            noFrames.classList.remove("hidden");
+            noFrames.textContent = "No frames for this day";
             frameImage.classList.remove("visible");
             frameInfo.textContent = "";
             // no frames
@@ -235,18 +240,23 @@ async function loadAllFrames(start, end, total) {
 // --- Scrub system ---
 
 let scrubInited = false;
-const FILMSTRIP_WINDOW_SEC = 3 * 3600; // 3 hours
+const FILM_WINDOW_SEC = 3 * 3600; // 3h window for filmstrip
+let filmWindowStart = 0;          // epoch of filmstrip left edge
+let filmWindowEnd = 0;            // epoch of filmstrip right edge
 
 function buildFilmstrip() {
-    updateFilmstripWindow(currentIndex);
-    updateScrubPosition(currentIndex);
+    lastFilmCenter = currentIndex;
+    rebuildFilmstrip(currentIndex);
+    updateSliderPosition(currentIndex);
     if (!scrubInited) {
         initScrubDrag();
         scrubInited = true;
     }
 }
 
-function updateFilmstripWindow(idx) {
+let lastFilmCenter = 0;
+
+function rebuildFilmstrip(centerIdx) {
     const strip = document.getElementById("scrub-filmstrip");
     const cursor = document.getElementById("scrub-cursor");
     strip.innerHTML = "";
@@ -254,58 +264,67 @@ function updateFilmstripWindow(idx) {
 
     if (currentFrames.length === 0) return;
 
-    const centerTime = currentFrames[idx].captured_at;
-    const halfWindow = FILMSTRIP_WINDOW_SEC / 2;
-    const windowStart = centerTime - halfWindow;
-    const windowEnd = centerTime + halfWindow;
+    const centerTime = currentFrames[centerIdx].captured_at;
+    filmWindowStart = centerTime - FILM_WINDOW_SEC / 2;
+    filmWindowEnd = centerTime + FILM_WINDOW_SEC / 2;
+    lastFilmCenter = centerIdx;
 
-    // Find frames in the window
-    const windowFrames = [];
-    for (let i = 0; i < currentFrames.length; i++) {
-        const t = currentFrames[i].captured_at;
-        if (t >= windowStart && t <= windowEnd) {
-            windowFrames.push({ frame: currentFrames[i], idx: i });
-        }
-    }
+    // Collect frames in window using binary-ish search (frames are sorted)
+    let iStart = 0;
+    let iEnd = currentFrames.length - 1;
+    while (iStart < currentFrames.length && currentFrames[iStart].captured_at < filmWindowStart) iStart++;
+    while (iEnd >= 0 && currentFrames[iEnd].captured_at > filmWindowEnd) iEnd--;
+    if (iStart > iEnd) return;
 
-    if (windowFrames.length === 0) return;
+    const windowLen = iEnd - iStart + 1;
+    const maxThumbs = 30;
+    const step = Math.max(1, Math.floor(windowLen / maxThumbs));
 
-    // Show up to ~40 evenly-spaced thumbs from the window
-    const maxThumbs = 40;
-    const step = Math.max(1, Math.floor(windowFrames.length / maxThumbs));
-
-    for (let i = 0; i < windowFrames.length; i += step) {
-        const { frame } = windowFrames[i];
+    for (let i = iStart; i <= iEnd; i += step) {
+        const frame = currentFrames[i];
         const div = document.createElement("div");
         div.className = "film-frame";
-
         const img = document.createElement("img");
-        img.src = frame.thumb_path
-            ? `/thumbs/${frame.thumb_path}`
-            : `/images/${frame.file_path}`;
+        img.src = frame.thumb_path ? `/thumbs/${frame.thumb_path}` : `/images/${frame.file_path}`;
         img.loading = "lazy";
         img.draggable = false;
         div.appendChild(img);
         strip.appendChild(div);
     }
 
-    // Track center for cursor updates during drag
-    lastFilmstripIdx = idx;
-
-    // Position cursor based on time within the window
-    const t = currentFrames[idx].captured_at;
-    const cursorPct = ((t - windowStart) / FILMSTRIP_WINDOW_SEC) * 100;
-    cursor.style.left = Math.max(0, Math.min(100, cursorPct)) + "%";
+    updateCursorPosition(centerIdx);
 }
 
-function updateScrubPosition(idx) {
+function updateCursorPosition(idx) {
+    if (currentFrames.length === 0 || filmWindowEnd <= filmWindowStart) return;
+    const t = currentFrames[idx].captured_at;
+    const pct = ((t - filmWindowStart) / (filmWindowEnd - filmWindowStart)) * 100;
+    document.getElementById("scrub-cursor").style.left =
+        Math.max(0, Math.min(100, pct)) + "%";
+}
+
+function updateSliderPosition(idx) {
     if (currentFrames.length <= 1) return;
     const pct = (idx / (currentFrames.length - 1)) * 100;
     document.getElementById("scrub-fill").style.width = pct + "%";
     document.getElementById("scrub-handle").style.left = pct + "%";
 }
 
-let lastFilmstripIdx = -1;
+function findNearestIdx(targetTime) {
+    // Binary search for nearest frame
+    let lo = 0, hi = currentFrames.length - 1;
+    while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (currentFrames[mid].captured_at < targetTime) lo = mid + 1;
+        else hi = mid;
+    }
+    // Check lo and lo-1 for closest
+    if (lo > 0 && Math.abs(currentFrames[lo - 1].captured_at - targetTime)
+        < Math.abs(currentFrames[lo].captured_at - targetTime)) {
+        return lo - 1;
+    }
+    return lo;
+}
 
 function initScrubDrag() {
     const track = document.getElementById("scrub-track");
@@ -317,22 +336,12 @@ function initScrubDrag() {
         if (currentFrames.length === 0) return;
         const el = source === "strip" ? strip : track;
         const rect = el.getBoundingClientRect();
-        let pct = (clientX - rect.left) / rect.width;
-        pct = Math.max(0, Math.min(1, pct));
+        const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
 
         let idx;
         if (source === "strip") {
-            // Filmstrip maps to the current 3h window
-            const centerTime = currentFrames[currentIndex].captured_at;
-            const halfWindow = FILMSTRIP_WINDOW_SEC / 2;
-            const targetTime = (centerTime - halfWindow) + pct * FILMSTRIP_WINDOW_SEC;
-            // Find nearest frame to targetTime
-            idx = 0;
-            let bestDist = Infinity;
-            for (let i = 0; i < currentFrames.length; i++) {
-                const d = Math.abs(currentFrames[i].captured_at - targetTime);
-                if (d < bestDist) { bestDist = d; idx = i; }
-            }
+            const targetTime = filmWindowStart + pct * (filmWindowEnd - filmWindowStart);
+            idx = findNearestIdx(targetTime);
         } else {
             idx = Math.round(pct * (currentFrames.length - 1));
         }
@@ -340,43 +349,33 @@ function initScrubDrag() {
         if (idx !== currentIndex) showFrame(idx);
     }
 
-    function onDown(x, source) {
-        dragging = true;
-        dragSource = source;
-        scrubToX(x, source);
-    }
-
-    track.addEventListener("mousedown", (e) => {
-        e.preventDefault();
-        onDown(e.clientX, "track");
+    [track, strip].forEach(el => {
+        const src = el === strip ? "strip" : "track";
+        el.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            dragging = true;
+            dragSource = src;
+            scrubToX(e.clientX, src);
+        });
+        el.addEventListener("touchstart", (e) => {
+            dragging = true;
+            dragSource = src;
+            scrubToX(e.touches[0].clientX, src);
+        }, { passive: true });
     });
-    track.addEventListener("touchstart", (e) => {
-        onDown(e.touches[0].clientX, "track");
-    }, { passive: true });
-
-    strip.addEventListener("mousedown", (e) => {
-        e.preventDefault();
-        onDown(e.clientX, "strip");
-    });
-    strip.addEventListener("touchstart", (e) => {
-        onDown(e.touches[0].clientX, "strip");
-    }, { passive: true });
 
     document.addEventListener("mousemove", (e) => {
         if (dragging) scrubToX(e.clientX, dragSource);
     });
     document.addEventListener("touchmove", (e) => {
-        if (dragging) {
-            e.preventDefault();
-            scrubToX(e.touches[0].clientX, dragSource);
-        }
+        if (dragging) { e.preventDefault(); scrubToX(e.touches[0].clientX, dragSource); }
     }, { passive: false });
 
     document.addEventListener("mouseup", () => {
-        if (dragging) { dragging = false; updateFilmstripWindow(currentIndex); }
+        if (dragging) { dragging = false; rebuildFilmstrip(currentIndex); }
     });
     document.addEventListener("touchend", () => {
-        if (dragging) { dragging = false; updateFilmstripWindow(currentIndex); }
+        if (dragging) { dragging = false; rebuildFilmstrip(currentIndex); }
     });
 }
 
@@ -385,17 +384,8 @@ function showFrame(idx) {
     currentIndex = idx;
     const frame = currentFrames[idx];
     updateTimeDisplay(idx);
-    updateScrubPosition(idx);
-    // Update filmstrip cursor within current window
-    if (lastFilmstripIdx >= 0 && lastFilmstripIdx < currentFrames.length) {
-        const centerTime = currentFrames[lastFilmstripIdx].captured_at;
-        const halfWindow = FILMSTRIP_WINDOW_SEC / 2;
-        const wStart = centerTime - halfWindow;
-        const t = frame.captured_at;
-        const pct = ((t - wStart) / FILMSTRIP_WINDOW_SEC) * 100;
-        document.getElementById("scrub-cursor").style.left =
-            Math.max(0, Math.min(100, pct)) + "%";
-    }
+    updateSliderPosition(idx);
+    updateCursorPosition(idx);
 
     frameImage.src = `/images/${frame.file_path}`;
     frameImage.classList.add("visible");
