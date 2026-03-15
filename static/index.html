@@ -148,8 +148,9 @@
     </nav>
 
     <script>
-        const WEBRTC_URL = "{{ webrtc_url }}";
-        const HLS_URL = "{{ hls_url }}";
+        const _host = window.location.hostname;
+        const WEBRTC_URL = `http://${_host}:8889/cam`;
+        const HLS_URL = `http://${_host}:8888/cam`;
     </script>
     <script src="https://cdn.jsdelivr.net/npm/nouislider@15.8.1/dist/nouislider.min.js"></script>
     <script src="/static/app.js"></script>
