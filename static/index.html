@@ -36,7 +36,7 @@
         </section>
 
         <section id="timeline-section">
-            <div class="timeline-bar">
+            <div class="tl-controls">
                 <input type="date" id="date-picker">
                 <button id="btn-prev" class="tl-btn">&larr;</button>
                 <span id="time-display" class="tl-time-display">--:--:--</span>
@@ -44,19 +44,23 @@
                 <button id="btn-play" class="tl-btn">&#9654;</button>
                 <span id="frame-count" class="tl-count">0</span>
             </div>
+            <div class="scrub-area" id="scrub-area">
+                <div class="scrub-slider-row">
+                    <span id="time-start" class="scrub-time">--:--</span>
+                    <div class="scrub-track" id="scrub-track">
+                        <div class="scrub-fill" id="scrub-fill"></div>
+                        <div class="scrub-handle" id="scrub-handle"></div>
+                    </div>
+                    <span id="time-end" class="scrub-time">--:--</span>
+                </div>
+                <div class="scrub-filmstrip" id="scrub-filmstrip">
+                    <div class="scrub-cursor" id="scrub-cursor"></div>
+                </div>
+            </div>
             <div class="frame-container">
                 <img id="frame-image" alt="Captured frame">
                 <div id="frame-info" class="frame-info"></div>
                 <div id="no-frames" class="placeholder">No frames for this day</div>
-            </div>
-            <div class="filmstrip-wrap">
-                <div id="filmstrip" class="filmstrip">
-                    <div id="filmstrip-cursor" class="filmstrip-cursor"></div>
-                </div>
-                <div class="filmstrip-times">
-                    <span id="time-start">--:--</span>
-                    <span id="time-end">--:--</span>
-                </div>
             </div>
         </section>
     </main>

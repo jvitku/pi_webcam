@@ -312,16 +312,17 @@ video {
 
 /* --- Timeline --- */
 
-.timeline-bar {
+.tl-controls {
     display: flex;
     align-items: center;
     gap: 0.25rem;
-    padding: 0.25rem 0.3rem;
+    padding: 0.2rem 0.3rem;
     background: var(--surface);
     border-radius: 10px;
+    margin-bottom: 0.3rem;
 }
 
-.timeline-bar input[type="date"] {
+.tl-controls input[type="date"] {
     background: none;
     color: var(--text-dim);
     border: none;
@@ -365,34 +366,75 @@ video {
     white-space: nowrap;
 }
 
-/* --- Filmstrip --- */
+/* --- Scrub area (slider + filmstrip) --- */
 
-.filmstrip-wrap {
-    padding: 0.2rem 0;
+.scrub-area {
+    margin-bottom: 0.3rem;
 }
 
-.filmstrip {
+.scrub-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.1rem 0;
+}
+
+.scrub-time {
+    font-size: 0.6rem;
+    font-family: "SF Mono", "Menlo", monospace;
+    color: var(--text-dim);
+    white-space: nowrap;
+    min-width: 2.5em;
+}
+
+.scrub-track {
+    flex: 1;
+    position: relative;
+    height: 4px;
+    background: rgba(255,255,255,0.12);
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.scrub-fill {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    background: var(--accent);
+    border-radius: 2px;
+    pointer-events: none;
+}
+
+.scrub-handle {
+    position: absolute;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    transform: translate(-50%, -50%);
+    left: 0%;
+    pointer-events: none;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+}
+
+.scrub-filmstrip {
     position: relative;
     display: flex;
     gap: 1px;
-    height: 48px;
+    height: 40px;
     overflow: hidden;
-    border-radius: 6px;
-    cursor: grab;
-    user-select: none;
-    -webkit-user-select: none;
-    touch-action: none;
+    border-radius: 4px;
+    margin-top: 0.2rem;
 }
 
-.filmstrip.dragging { cursor: grabbing; }
-
-.filmstrip .film-frame {
-    flex-shrink: 0;
+.scrub-filmstrip .film-frame {
+    flex: 1;
+    min-width: 0;
     height: 100%;
     overflow: hidden;
 }
 
-.filmstrip .film-frame img {
+.scrub-filmstrip .film-frame img {
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -400,48 +442,36 @@ video {
     display: block;
 }
 
-.filmstrip-cursor {
+.scrub-cursor {
     position: absolute;
     top: 0;
     bottom: 0;
     width: 2px;
     background: var(--accent);
-    left: 50%;
-    transform: translateX(-50%);
+    left: 0%;
     z-index: 5;
     pointer-events: none;
-    box-shadow: 0 0 6px rgba(79,195,247,0.5);
+    box-shadow: 0 0 4px rgba(79,195,247,0.6);
 }
 
-.filmstrip-cursor::before,
-.filmstrip-cursor::after {
+.scrub-cursor::before,
+.scrub-cursor::after {
     content: "";
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
-    width: 0;
-    height: 0;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
 }
 
-.filmstrip-cursor::before {
+.scrub-cursor::before {
     top: 0;
-    border-top: 5px solid var(--accent);
+    border-top: 4px solid var(--accent);
 }
 
-.filmstrip-cursor::after {
+.scrub-cursor::after {
     bottom: 0;
-    border-bottom: 5px solid var(--accent);
-}
-
-.filmstrip-times {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.6rem;
-    font-family: "SF Mono", "Menlo", monospace;
-    color: var(--text-dim);
-    padding-top: 0.1rem;
+    border-bottom: 4px solid var(--accent);
 }
 
 /* --- Frame viewer --- */
