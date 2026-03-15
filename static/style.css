@@ -362,6 +362,17 @@ video {
     text-align: center;
 }
 
+.tl-speed {
+    background: var(--surface-hover);
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.2rem 0.3rem;
+    font-size: 0.7rem;
+    font-family: inherit;
+    cursor: pointer;
+}
+
 .tl-count {
     font-size: 0.65rem;
     color: var(--text-dim);

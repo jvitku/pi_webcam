@@ -479,6 +479,10 @@ function togglePlay() {
     }
 }
 
+function getPlaySkip() {
+    return parseInt(document.getElementById("play-speed").value) || 5;
+}
+
 async function playNext() {
     if (!playing) return;
 
@@ -490,14 +494,17 @@ async function playNext() {
         if (detailFrames.length === 0) { togglePlay(); return; }
     }
 
-    if (detailIdx >= detailFrames.length - 1) {
-        // Try to load more
+    const skip = getPlaySkip();
+    let nextIdx = Math.min(detailIdx + skip, detailFrames.length - 1);
+
+    if (nextIdx <= detailIdx) {
+        // At end — try to load more
         const lastEpoch = detailFrames[detailFrames.length - 1].captured_at;
         await loadDetailWindow(lastEpoch + DETAIL_SIZE / 2);
-        if (detailIdx >= detailFrames.length - 1) { togglePlay(); return; }
+        nextIdx = Math.min(detailIdx + skip, detailFrames.length - 1);
+        if (nextIdx <= detailIdx) { togglePlay(); return; }
     }
 
-    const nextIdx = detailIdx + 1;
     const frame = detailFrames[nextIdx];
     const src = `/images/${frame.file_path}`;
 
