@@ -315,6 +315,7 @@ video {
 .tl-controls {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 0.25rem;
     padding: 0.2rem 0.3rem;
     background: var(--surface);
@@ -376,7 +377,6 @@ video {
 .tl-count {
     font-size: 0.65rem;
     color: var(--text-dim);
-    padding-right: 0.2rem;
     white-space: nowrap;
 }
 
