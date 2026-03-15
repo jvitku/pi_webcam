@@ -369,7 +369,22 @@ video {
     white-space: nowrap;
 }
 
+.slider-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.slider-label {
+    font-size: 0.65rem;
+    font-family: "SF Mono", "Menlo", monospace;
+    color: var(--text-dim);
+    white-space: nowrap;
+    min-width: 2.8em;
+}
+
 .slider-container {
+    flex: 1;
     padding: 0.15rem 0 0.3rem;
 }
 
@@ -390,6 +405,46 @@ video {
     background: #fff;
     cursor: pointer;
     box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+
+/* --- Thumbnail strip --- */
+
+.thumb-strip {
+    display: flex;
+    gap: 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding: 0.2rem 0 0.4rem;
+    scroll-snap-type: x mandatory;
+}
+
+.thumb-strip::-webkit-scrollbar { display: none; }
+
+.thumb-strip .thumb-item {
+    flex-shrink: 0;
+    width: 56px;
+    height: 32px;
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.15s, outline-color 0.15s;
+    scroll-snap-align: center;
+    outline: 2px solid transparent;
+}
+
+.thumb-strip .thumb-item.active {
+    opacity: 1;
+    outline-color: var(--accent);
+}
+
+.thumb-strip .thumb-item:hover { opacity: 0.85; }
+
+.thumb-strip .thumb-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 /* --- Frame viewer --- */

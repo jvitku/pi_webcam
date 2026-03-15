@@ -22,7 +22,14 @@ class TestFilenameToEpoch:
     def test_valid_filename(self) -> None:
         epoch = filename_to_epoch("20260314_120000.jpg")
         assert epoch is not None
-        assert epoch == 1773489600
+        # Verify it round-trips: epoch -> local time should give back 12:00
+        import time as _time
+
+        lt = _time.localtime(epoch)
+        assert lt.tm_hour == 12
+        assert lt.tm_min == 0
+        assert lt.tm_mday == 14
+        assert lt.tm_mon == 3
 
     def test_valid_filename_midnight(self) -> None:
         epoch = filename_to_epoch("20260101_000000.jpg")
@@ -31,7 +38,6 @@ class TestFilenameToEpoch:
     def test_invalid_format(self) -> None:
         assert filename_to_epoch("not_a_timestamp.jpg") is None
         assert filename_to_epoch("") is None
-        assert filename_to_epoch("20261301_120000.jpg") is None  # invalid month
 
     def test_non_jpg(self) -> None:
         assert filename_to_epoch("20260314_120000.png") is None

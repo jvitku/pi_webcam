@@ -6,7 +6,6 @@ import asyncio
 import contextlib
 import logging
 import re
-from datetime import UTC, datetime
 from pathlib import Path
 
 from pi_webcam.config import Settings
@@ -20,15 +19,21 @@ FILENAME_PATTERN = re.compile(r"^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\.jp
 
 
 def filename_to_epoch(filename: str) -> int | None:
-    """Parse a timestamped filename into Unix epoch. Returns None if invalid."""
+    """Parse a timestamped filename into Unix epoch.
+
+    Filenames are in local time (from ffmpeg -strftime using system clock).
+    """
     match = FILENAME_PATTERN.match(filename)
     if not match:
         return None
     year, month, day, hour, minute, second = (int(g) for g in match.groups())
     try:
-        dt = datetime(year, month, day, hour, minute, second, tzinfo=UTC)
-        return int(dt.timestamp())
-    except ValueError:
+        # Local time — no tzinfo, mktime uses system timezone
+        import time as _time
+
+        local_dt = _time.mktime((year, month, day, hour, minute, second, 0, 0, -1))
+        return int(local_dt)
+    except (ValueError, OverflowError):
         return None
 
 

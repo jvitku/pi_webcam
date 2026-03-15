@@ -193,21 +193,36 @@ async function loadDay(dateStr) {
             frameImage.classList.remove("visible");
             frameInfo.textContent = "";
             slider.disabled = true;
+            document.getElementById("time-start").textContent = "--:--";
+            document.getElementById("time-end").textContent = "--:--";
+            document.getElementById("thumb-strip").innerHTML = "";
             return;
+        }
+
+        if (data.has_more) {
+            await loadAllFrames(dayStart, dayEnd, data.total);
         }
 
         noFrames.classList.add("hidden");
         slider.disabled = false;
         slider.max = currentFrames.length - 1;
         slider.value = currentFrames.length - 1;
-        showFrame(currentFrames.length - 1);
 
-        if (data.has_more) {
-            await loadAllFrames(dayStart, dayEnd, data.total);
-        }
+        // Time range labels
+        const tStart = new Date(currentFrames[0].captured_at * 1000);
+        const tEnd = new Date(currentFrames[currentFrames.length - 1].captured_at * 1000);
+        document.getElementById("time-start").textContent = fmtTime(tStart);
+        document.getElementById("time-end").textContent = fmtTime(tEnd);
+
+        buildThumbStrip();
+        showFrame(currentFrames.length - 1);
     } catch (e) {
         console.error("Failed to load frames:", e);
     }
+}
+
+function fmtTime(d) {
+    return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
 }
 
 async function loadAllFrames(start, end, total) {
@@ -221,6 +236,51 @@ async function loadAllFrames(start, end, total) {
     }
     slider.max = currentFrames.length - 1;
     frameCount.textContent = `${currentFrames.length}`;
+}
+
+function buildThumbStrip() {
+    const strip = document.getElementById("thumb-strip");
+    strip.innerHTML = "";
+
+    // Show ~30 evenly-spaced thumbnails
+    const maxThumbs = 30;
+    const step = Math.max(1, Math.floor(currentFrames.length / maxThumbs));
+
+    for (let i = 0; i < currentFrames.length; i += step) {
+        const frame = currentFrames[i];
+        const div = document.createElement("div");
+        div.className = "thumb-item";
+        div.dataset.idx = i;
+
+        const img = document.createElement("img");
+        const src = frame.thumb_path ? `/thumbs/${frame.thumb_path}` : `/images/${frame.file_path}`;
+        img.src = src;
+        img.loading = "lazy";
+        div.appendChild(img);
+
+        div.addEventListener("click", () => {
+            showFrame(parseInt(div.dataset.idx));
+        });
+
+        strip.appendChild(div);
+    }
+}
+
+function highlightThumb(idx) {
+    const strip = document.getElementById("thumb-strip");
+    const items = strip.querySelectorAll(".thumb-item");
+    let best = null;
+    let bestDist = Infinity;
+    items.forEach(item => {
+        const itemIdx = parseInt(item.dataset.idx);
+        const dist = Math.abs(itemIdx - idx);
+        item.classList.toggle("active", false);
+        if (dist < bestDist) { bestDist = dist; best = item; }
+    });
+    if (best) {
+        best.classList.add("active");
+        best.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    }
 }
 
 function onSliderInput() {
@@ -241,6 +301,7 @@ function showFrame(idx) {
     slider.value = idx;
     const frame = currentFrames[idx];
     updateTimeDisplay(idx);
+    highlightThumb(idx);
 
     frameImage.src = `/images/${frame.file_path}`;
     frameImage.classList.add("visible");
@@ -250,7 +311,7 @@ function showFrame(idx) {
 
     const dt = new Date(frame.captured_at * 1000);
     const sizeKb = frame.file_size ? `${Math.round(frame.file_size / 1024)} KB` : "";
-    frameInfo.textContent = `${dt.toLocaleString()} | ${sizeKb} | Frame ${idx + 1}/${currentFrames.length}`;
+    frameInfo.textContent = `${dt.toLocaleString()} | ${sizeKb} | ${idx + 1}/${currentFrames.length}`;
 }
 
 function showThumbnail(idx) {

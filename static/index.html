@@ -44,9 +44,14 @@
                 <button id="btn-play" class="tl-btn">&#9654;</button>
                 <span id="frame-count" class="tl-count">0</span>
             </div>
-            <div class="slider-container">
-                <input type="range" id="time-slider" min="0" max="86399" value="0" step="1">
+            <div class="slider-wrap">
+                <span id="time-start" class="slider-label">--:--</span>
+                <div class="slider-container">
+                    <input type="range" id="time-slider" min="0" max="0" value="0" step="1">
+                </div>
+                <span id="time-end" class="slider-label">--:--</span>
             </div>
+            <div id="thumb-strip" class="thumb-strip"></div>
             <div class="frame-container">
                 <img id="frame-image" alt="Captured frame">
                 <div id="frame-info" class="frame-info"></div>
