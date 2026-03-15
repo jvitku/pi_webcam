@@ -494,8 +494,13 @@ function getPlaySkip() {
 }
 
 function onPlaySpeedChange() {
-    // No action needed — playNext reads getPlaySkip() each iteration
-    // and prefetch will use the new rate automatically
+    if (!playing || detailFrames.length === 0 || detailIdx < 0) return;
+    // Save current position, clear frames, let playNext reload
+    const epoch = detailFrames[detailIdx].captured_at;
+    // Find nearest sampled index to preserve slider position
+    syncSliderToEpoch(epoch);
+    detailFrames = [];
+    detailIdx = -1;
 }
 
 async function playNext() {
