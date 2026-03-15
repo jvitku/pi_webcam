@@ -238,17 +238,25 @@ class CaptureWorker:
             return
 
         dest = self.settings.frames_dir / rel_path
+
+        # Skip if file already exists (same-second duplicate)
+        if dest.exists():
+            return
+
         dest.parent.mkdir(parents=True, exist_ok=True)
 
         try:
             shutil.copy2(str(latest_path), str(dest))
-        except OSError:
+        except OSError as e:
+            logger.warning("Failed to copy latest.jpg: %s", e)
             return
 
         file_size = dest.stat().st_size if dest.exists() else None
         if file_size == 0:
             dest.unlink(missing_ok=True)
             return
+
+        logger.info("Captured frame: %s (%d bytes)", filename, file_size or 0)
 
         # Generate thumbnail
         thumb_rel = thumb_relative_path(rel_path)
