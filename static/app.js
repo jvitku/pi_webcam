@@ -425,14 +425,16 @@ function showFrameThumb(idx) {
     frameInfo.textContent = `${dt.toLocaleTimeString()}`;
 }
 
-async function showFrameFromSampled(idx) {
-    // Show sampled frame immediately, then load detail window
+function showFrameFromSampled(idx) {
+    // Show sampled frame. Detail window loaded on demand by play/arrows.
     if (idx < 0 || idx >= currentFrames.length) return;
     currentIndex = idx;
+    detailFrames = [];
+    detailIdx = -1;
+    detailLoading = false;
     const frame = currentFrames[idx];
     displayFrame(frame, "");
     syncSliderToEpoch(frame.captured_at);
-    await loadDetailWindow(frame.captured_at, false, 1);
 }
 
 function showFrame(idx) {
@@ -452,7 +454,7 @@ function showFrame(idx) {
 async function stepFrame(delta) {
     if (detailFrames.length === 0 || detailIdx < 0) {
         if (currentIndex >= 0 && currentIndex < currentFrames.length) {
-            await loadDetailWindow(currentFrames[currentIndex].captured_at, false, 1);
+            await loadDetailWindow(currentFrames[currentIndex].captured_at, false, 1, true);
         }
         if (detailFrames.length === 0) return;
     }
