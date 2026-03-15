@@ -349,31 +349,63 @@ video {
 
 .tl-btn:active { color: var(--text); }
 
-.tl-slider {
-    flex: 1;
-    height: 3px;
-    -webkit-appearance: none;
-    background: rgba(255,255,255,0.1);
+/* --- Scrubber (YouTube-style) --- */
+
+.scrubber {
+    padding: 0.4rem 0 0.1rem;
+}
+
+.scrubber-track {
+    position: relative;
+    height: 4px;
+    background: rgba(255,255,255,0.15);
     border-radius: 2px;
-    outline: none;
-    min-width: 60px;
-}
-
-.tl-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: #fff;
     cursor: pointer;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    transition: height 0.15s;
 }
 
-.tl-time {
+.scrubber-track:hover, .scrubber-track.active {
+    height: 6px;
+}
+
+.scrubber-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    background: var(--accent);
+    border-radius: 2px;
+    pointer-events: none;
+    width: 0%;
+}
+
+.scrubber-thumb {
+    position: absolute;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    transform: translate(-50%, -50%);
+    left: 0%;
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: none;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+}
+
+.scrubber-track:hover .scrubber-thumb,
+.scrubber-track.active .scrubber-thumb {
+    opacity: 1;
+}
+
+.scrubber-labels {
+    display: flex;
+    justify-content: space-between;
     font-size: 0.6rem;
     font-family: "SF Mono", "Menlo", monospace;
     color: var(--text-dim);
-    white-space: nowrap;
+    padding-top: 0.15rem;
 }
 
 .tl-count {

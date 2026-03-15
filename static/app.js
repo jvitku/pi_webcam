@@ -1,6 +1,5 @@
 /* Pi Webcam — Frontend */
 
-const slider = document.getElementById("time-slider");
 const timeDisplay = document.getElementById("time-display");
 const frameImage = document.getElementById("frame-image");
 const frameInfo = document.getElementById("frame-info");
@@ -41,12 +40,11 @@ function init() {
     datePicker.value = today;
 
     datePicker.addEventListener("change", () => loadDay(datePicker.value));
-    slider.addEventListener("input", onSliderInput);
-    slider.addEventListener("change", onSliderChange);
     btnPrev.addEventListener("click", () => stepFrame(-1));
     btnNext.addEventListener("click", () => stepFrame(1));
     btnPlay.addEventListener("click", togglePlay);
     fpsSelect.addEventListener("change", onFpsChange);
+    initScrubber();
 
     document.addEventListener("keydown", (e) => {
         if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
@@ -192,7 +190,7 @@ async function loadDay(dateStr) {
             noFrames.classList.remove("hidden");
             frameImage.classList.remove("visible");
             frameInfo.textContent = "";
-            slider.disabled = true;
+            // no frames
             document.getElementById("time-start").textContent = "--:--";
             document.getElementById("time-end").textContent = "--:--";
             document.getElementById("thumb-strip").innerHTML = "";
@@ -204,9 +202,6 @@ async function loadDay(dateStr) {
         }
 
         noFrames.classList.add("hidden");
-        slider.disabled = false;
-        slider.max = currentFrames.length - 1;
-        slider.value = currentFrames.length - 1;
 
         // Time range labels
         const tStart = new Date(currentFrames[0].captured_at * 1000);
@@ -234,7 +229,6 @@ async function loadAllFrames(start, end, total) {
         offset += data.frames.length;
         if (!data.has_more) break;
     }
-    slider.max = currentFrames.length - 1;
     frameCount.textContent = `${currentFrames.length}`;
 }
 
@@ -270,10 +264,6 @@ function buildThumbStrip() {
             div.appendChild(t);
         }
 
-        div.addEventListener("click", () => {
-            showFrame(parseInt(div.dataset.idx));
-        });
-
         strip.appendChild(div);
     }
 
@@ -284,30 +274,58 @@ function buildThumbStrip() {
 function initDragScroll(el) {
     let isDown = false;
     let startX = 0;
-    let scrollLeft = 0;
+    let startIdx = 0;
+    let didDrag = false;
 
-    el.addEventListener("mousedown", (e) => {
+    function onStart(x) {
         isDown = true;
+        didDrag = false;
         el.classList.add("dragging");
-        startX = e.pageX - el.offsetLeft;
-        scrollLeft = el.scrollLeft;
-    });
+        startX = x;
+        startIdx = currentIndex;
+    }
 
-    el.addEventListener("mouseleave", () => {
-        isDown = false;
-        el.classList.remove("dragging");
-    });
-
-    el.addEventListener("mouseup", () => {
-        isDown = false;
-        el.classList.remove("dragging");
-    });
-
-    el.addEventListener("mousemove", (e) => {
+    function onMove(x) {
         if (!isDown) return;
+        const dx = x - startX;
+        if (Math.abs(dx) > 5) didDrag = true;
+        // Each 20px of drag = 1 frame
+        const frameDelta = -Math.round(dx / 20);
+        const newIdx = Math.max(0, Math.min(
+            currentFrames.length - 1, startIdx + frameDelta
+        ));
+        if (newIdx !== currentIndex) {
+            showFrame(newIdx);
+        }
+    }
+
+    function onEnd() {
+        isDown = false;
+        el.classList.remove("dragging");
+    }
+
+    // Mouse events
+    el.addEventListener("mousedown", (e) => {
         e.preventDefault();
-        const x = e.pageX - el.offsetLeft;
-        el.scrollLeft = scrollLeft - (x - startX);
+        onStart(e.pageX);
+    });
+    document.addEventListener("mousemove", (e) => onMove(e.pageX));
+    document.addEventListener("mouseup", onEnd);
+
+    // Touch events
+    el.addEventListener("touchstart", (e) => {
+        onStart(e.touches[0].pageX);
+    }, { passive: true });
+    document.addEventListener("touchmove", (e) => {
+        if (isDown) onMove(e.touches[0].pageX);
+    }, { passive: true });
+    document.addEventListener("touchend", onEnd);
+
+    // Click on thumb (only if not dragging)
+    el.addEventListener("click", (e) => {
+        if (didDrag) return;
+        const item = e.target.closest(".thumb-item");
+        if (item) showFrame(parseInt(item.dataset.idx));
     });
 }
 
@@ -328,24 +346,59 @@ function highlightThumb(idx) {
     }
 }
 
-function onSliderInput() {
-    clearTimeout(debounceTimer);
-    const idx = parseInt(slider.value);
-    updateTimeDisplay(idx);
-    debounceTimer = setTimeout(() => showThumbnail(idx), 100);
+function initScrubber() {
+    const track = document.getElementById("scrubber-track");
+    let dragging = false;
+
+    function scrubTo(e) {
+        if (currentFrames.length === 0) return;
+        const rect = track.getBoundingClientRect();
+        const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        const idx = Math.round(pct * (currentFrames.length - 1));
+        showFrame(idx);
+    }
+
+    track.addEventListener("mousedown", (e) => {
+        dragging = true;
+        track.classList.add("active");
+        scrubTo(e);
+    });
+    track.addEventListener("touchstart", (e) => {
+        dragging = true;
+        track.classList.add("active");
+        scrubTo(e.touches[0]);
+    }, { passive: true });
+
+    document.addEventListener("mousemove", (e) => {
+        if (dragging) scrubTo(e);
+    });
+    document.addEventListener("touchmove", (e) => {
+        if (dragging) scrubTo(e.touches[0]);
+    }, { passive: true });
+
+    document.addEventListener("mouseup", () => {
+        dragging = false;
+        track.classList.remove("active");
+    });
+    document.addEventListener("touchend", () => {
+        dragging = false;
+        track.classList.remove("active");
+    });
 }
 
-function onSliderChange() {
-    clearTimeout(debounceTimer);
-    showFrame(parseInt(slider.value));
+function updateScrubber(idx) {
+    if (currentFrames.length <= 1) return;
+    const pct = (idx / (currentFrames.length - 1)) * 100;
+    document.getElementById("scrubber-fill").style.width = pct + "%";
+    document.getElementById("scrubber-thumb").style.left = pct + "%";
 }
 
 function showFrame(idx) {
     if (idx < 0 || idx >= currentFrames.length) return;
     currentIndex = idx;
-    slider.value = idx;
     const frame = currentFrames[idx];
     updateTimeDisplay(idx);
+    updateScrubber(idx);
     highlightThumb(idx);
 
     frameImage.src = `/images/${frame.file_path}`;
@@ -357,15 +410,6 @@ function showFrame(idx) {
     const dt = new Date(frame.captured_at * 1000);
     const sizeKb = frame.file_size ? `${Math.round(frame.file_size / 1024)}KB` : "";
     frameInfo.textContent = `${sizeKb}  ${idx + 1}/${currentFrames.length}`;
-}
-
-function showThumbnail(idx) {
-    if (idx < 0 || idx >= currentFrames.length) return;
-    currentIndex = idx;
-    const frame = currentFrames[idx];
-    frameImage.src = frame.thumb_path ? `/thumbs/${frame.thumb_path}` : `/images/${frame.file_path}`;
-    frameImage.classList.add("visible");
-    noFrames.classList.add("hidden");
 }
 
 function updateTimeDisplay(idx) {
@@ -638,7 +682,6 @@ async function pollNewFrames() {
         if (data.has_more) await loadAllFrames(dayStart, dayEnd, data.total);
 
         frameCount.textContent = `${currentFrames.length}`;
-        slider.max = currentFrames.length - 1;
 
         if (wasAtEnd) showFrame(currentFrames.length - 1);
     } catch (e) { /* ignore */ }
