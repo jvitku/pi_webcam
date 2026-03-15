@@ -236,14 +236,20 @@ function fmtTime(d) {
     return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
 }
 
-// --- Scrub system (noUiSlider + filmstrip) ---
+// --- Scrub system (noUiSlider + filmstrip + detail window) ---
 
 let scrubSlider = null;
 let scrubUpdating = false;
 
-// Filmstrip state: which index range is currently displayed
+// Filmstrip: which sampled-index range is displayed
 let filmIdxStart = 0;
 let filmIdxEnd = 0;
+
+// Detail window: full-density frames for arrows/play
+let detailFrames = [];
+let detailIdx = -1;
+let detailLoading = false;
+const DETAIL_SIZE = 200;
 
 function initScrub() {
     const el = document.getElementById("scrub-slider");
@@ -256,13 +262,11 @@ function initScrub() {
 
     let userDragging = false;
 
-    // "start" fires when user grabs the handle
     scrubSlider.on("start", () => {
         userDragging = true;
         if (playing) togglePlay();
     });
 
-    // "slide" fires continuously during drag — show thumbnail (fast)
     scrubSlider.on("slide", (values) => {
         if (!userDragging) return;
         const idx = Math.round(parseFloat(values[0]));
@@ -271,33 +275,67 @@ function initScrub() {
         }
     });
 
-    // "end" fires when user releases — load full image + rebuild
     scrubSlider.on("end", (values) => {
         if (!userDragging) return;
         userDragging = false;
         const idx = Math.round(parseFloat(values[0]));
         if (idx >= 0 && idx < currentFrames.length) {
-            showFrame(idx);
+            showFrameFromSampled(idx);
             rebuildFilmstrip(idx);
         }
     });
 }
+
+// --- Detail window loading ---
+
+async function loadDetailWindow(centerEpoch) {
+    if (detailLoading) return;
+    detailLoading = true;
+    const halfSec = DETAIL_SIZE; // ~200 frames at 0.5fps = ~400 seconds
+    const start = centerEpoch - halfSec;
+    const end = centerEpoch + halfSec;
+    try {
+        const res = await fetch(
+            `/api/frames?start=${start}&end=${end}&limit=${DETAIL_SIZE * 2}`
+        );
+        const data = await res.json();
+        detailFrames = data.frames;
+        // Find the frame closest to centerEpoch
+        detailIdx = 0;
+        let bestDist = Infinity;
+        for (let i = 0; i < detailFrames.length; i++) {
+            const d = Math.abs(detailFrames[i].captured_at - centerEpoch);
+            if (d < bestDist) { bestDist = d; detailIdx = i; }
+        }
+    } catch (e) {
+        console.error("Failed to load detail window:", e);
+    }
+    detailLoading = false;
+}
+
+function needsDetailRefresh(epoch) {
+    if (detailFrames.length === 0) return true;
+    const first = detailFrames[0].captured_at;
+    const last = detailFrames[detailFrames.length - 1].captured_at;
+    // Need refresh if outside or near edge (within 20%)
+    const range = last - first;
+    const margin = range * 0.2;
+    return epoch < first + margin || epoch > last - margin;
+}
+
+// --- Filmstrip ---
 
 function rebuildFilmstrip(centerIdx) {
     const strip = document.getElementById("filmstrip");
     strip.innerHTML = "";
     if (currentFrames.length === 0) return;
 
-    // Show ~12 thumbnails centered on centerIdx
-    const half = 6;
     const maxIdx = currentFrames.length - 1;
-
-    // Calculate frame index range for filmstrip
-    // Use index-based windowing (simpler, always correct)
-    const windowSize = Math.min(currentFrames.length, Math.max(12, Math.floor(currentFrames.length / 5)));
+    const windowSize = Math.min(currentFrames.length,
+        Math.max(12, Math.floor(currentFrames.length / 5)));
     let iStart = Math.max(0, centerIdx - Math.floor(windowSize / 2));
     let iEnd = Math.min(maxIdx, iStart + windowSize - 1);
-    iStart = Math.max(0, iEnd - windowSize + 1); // re-adjust if clamped at end
+    iStart = Math.max(0, iEnd - windowSize + 1);
 
     filmIdxStart = iStart;
     filmIdxEnd = iEnd;
@@ -310,12 +348,12 @@ function rebuildFilmstrip(centerIdx) {
         const div = document.createElement("div");
         div.className = "film-frame";
         const img = document.createElement("img");
-        img.src = frame.thumb_path ? `/thumbs/${frame.thumb_path}` : `/images/${frame.file_path}`;
+        img.src = frame.thumb_path
+            ? `/thumbs/${frame.thumb_path}` : `/images/${frame.file_path}`;
         img.draggable = false;
         div.appendChild(img);
         strip.appendChild(div);
     }
-
     updateFilmCursor(centerIdx);
 }
 
@@ -324,66 +362,108 @@ function updateFilmCursor(idx) {
     const pct = ((idx - filmIdxStart) / (filmIdxEnd - filmIdxStart)) * 100;
     document.getElementById("film-cursor").style.left =
         Math.max(0, Math.min(100, pct)) + "%";
-
-    // Rebuild filmstrip if cursor goes outside the visible window
     if (idx < filmIdxStart || idx > filmIdxEnd) {
         rebuildFilmstrip(idx);
     }
 }
 
-function syncSlider(idx) {
-    if (scrubSlider) {
-        scrubUpdating = true;
-        scrubSlider.set(idx);
-        scrubUpdating = false;
+// --- Slider sync ---
+
+function syncSliderToEpoch(epoch) {
+    if (!scrubSlider || currentFrames.length === 0) return;
+    // Find nearest sampled index for this epoch
+    let best = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < currentFrames.length; i++) {
+        const d = Math.abs(currentFrames[i].captured_at - epoch);
+        if (d < bestDist) { bestDist = d; best = i; }
     }
+    scrubUpdating = true;
+    scrubSlider.set(best);
+    scrubUpdating = false;
+    currentIndex = best;
+    updateFilmCursor(best);
+}
+
+// --- Display functions ---
+
+function displayFrame(frame, label) {
+    frameImage.src = `/images/${frame.file_path}`;
+    frameImage.classList.add("visible");
+    frameImage.onerror = () => {
+        if (frame.thumb_path) frameImage.src = `/thumbs/${frame.thumb_path}`;
+    };
+    noFrames.classList.add("hidden");
+
+    const dt = new Date(frame.captured_at * 1000);
+    timeDisplay.textContent = dt.toTimeString().split(" ")[0];
+    const sizeKb = frame.file_size
+        ? `${Math.round(frame.file_size / 1024)}KB` : "";
+    frameInfo.textContent = `${dt.toLocaleTimeString()} | ${sizeKb}${label ? " | " + label : ""}`;
 }
 
 function showFrameThumb(idx) {
     if (idx < 0 || idx >= currentFrames.length) return;
     currentIndex = idx;
     const frame = currentFrames[idx];
-    updateTimeDisplay(idx);
     updateFilmCursor(idx);
 
-    const src = frame.thumb_path ? `/thumbs/${frame.thumb_path}` : `/images/${frame.file_path}`;
+    const src = frame.thumb_path
+        ? `/thumbs/${frame.thumb_path}` : `/images/${frame.file_path}`;
     frameImage.src = src;
     frameImage.classList.add("visible");
     noFrames.classList.add("hidden");
 
     const dt = new Date(frame.captured_at * 1000);
-    const sizeKb = frame.file_size ? `${Math.round(frame.file_size / 1024)}KB` : "";
-    frameInfo.textContent = `${dt.toLocaleTimeString()} | ${sizeKb} | ${idx + 1}/${currentFrames.length}`;
+    timeDisplay.textContent = dt.toTimeString().split(" ")[0];
+    frameInfo.textContent = `${dt.toLocaleTimeString()}`;
 }
 
-function showFrame(idx) {
+async function showFrameFromSampled(idx) {
+    // Show sampled frame immediately, then load detail window
     if (idx < 0 || idx >= currentFrames.length) return;
     currentIndex = idx;
     const frame = currentFrames[idx];
-    updateTimeDisplay(idx);
-    syncSlider(idx);
-    updateFilmCursor(idx);
-
-    frameImage.src = `/images/${frame.file_path}`;
-    frameImage.classList.add("visible");
-    frameImage.onerror = () => {
-        if (frame.thumb_path) frameImage.src = `/thumbs/${frame.thumb_path}`;
-    };
-
-    const dt = new Date(frame.captured_at * 1000);
-    const sizeKb = frame.file_size ? `${Math.round(frame.file_size / 1024)}KB` : "";
-    frameInfo.textContent = `${sizeKb}  ${idx + 1}/${currentFrames.length}`;
+    displayFrame(frame, "");
+    syncSliderToEpoch(frame.captured_at);
+    await loadDetailWindow(frame.captured_at);
 }
 
-function updateTimeDisplay(idx) {
+function showFrame(idx) {
+    // Show a sampled frame (used by pollNewFrames)
     if (idx < 0 || idx >= currentFrames.length) return;
-    const dt = new Date(currentFrames[idx].captured_at * 1000);
-    timeDisplay.textContent = dt.toTimeString().split(" ")[0];
+    currentIndex = idx;
+    const frame = currentFrames[idx];
+    displayFrame(frame, "");
+    scrubUpdating = true;
+    if (scrubSlider) scrubSlider.set(idx);
+    scrubUpdating = false;
+    updateFilmCursor(idx);
 }
 
-function stepFrame(delta) {
-    const newIdx = currentIndex + delta;
-    if (newIdx >= 0 && newIdx < currentFrames.length) showFrame(newIdx);
+// --- Step & Play (use detail window) ---
+
+async function stepFrame(delta) {
+    if (detailFrames.length === 0 || detailIdx < 0) {
+        // No detail window yet — load one from current sampled position
+        if (currentIndex >= 0 && currentIndex < currentFrames.length) {
+            await loadDetailWindow(currentFrames[currentIndex].captured_at);
+        }
+        if (detailFrames.length === 0) return;
+    }
+
+    const newIdx = detailIdx + delta;
+    if (newIdx < 0 || newIdx >= detailFrames.length) return;
+
+    detailIdx = newIdx;
+    const frame = detailFrames[detailIdx];
+    displayFrame(frame, `${detailIdx + 1}/${detailFrames.length}`);
+    syncSliderToEpoch(frame.captured_at);
+
+    // Prefetch if near edge
+    if (needsDetailRefresh(frame.captured_at)) {
+        loadDetailWindow(frame.captured_at);
+    }
 }
 
 let playing = false;
@@ -399,36 +479,52 @@ function togglePlay() {
     }
 }
 
-function playNext() {
+async function playNext() {
     if (!playing) return;
-    if (currentIndex >= currentFrames.length - 1) { togglePlay(); return; }
 
-    const nextIdx = currentIndex + 1;
-    const frame = currentFrames[nextIdx];
-    // Use full-res image for playback
+    // Ensure we have detail frames
+    if (detailFrames.length === 0 || detailIdx < 0) {
+        if (currentIndex >= 0 && currentIndex < currentFrames.length) {
+            await loadDetailWindow(currentFrames[currentIndex].captured_at);
+        }
+        if (detailFrames.length === 0) { togglePlay(); return; }
+    }
+
+    if (detailIdx >= detailFrames.length - 1) {
+        // Try to load more
+        const lastEpoch = detailFrames[detailFrames.length - 1].captured_at;
+        await loadDetailWindow(lastEpoch + DETAIL_SIZE / 2);
+        if (detailIdx >= detailFrames.length - 1) { togglePlay(); return; }
+    }
+
+    const nextIdx = detailIdx + 1;
+    const frame = detailFrames[nextIdx];
     const src = `/images/${frame.file_path}`;
 
-    // Preload the image, then show it and advance
     const img = new Image();
     img.onload = () => {
         if (!playing) return;
-        currentIndex = nextIdx;
+        detailIdx = nextIdx;
         frameImage.src = src;
         frameImage.classList.add("visible");
         noFrames.classList.add("hidden");
-        updateTimeDisplay(nextIdx);
-        syncSlider(nextIdx);
-        updateFilmCursor(nextIdx);
         const dt = new Date(frame.captured_at * 1000);
-        const sizeKb = frame.file_size ? `${Math.round(frame.file_size / 1024)}KB` : "";
-        frameInfo.textContent = `${dt.toLocaleTimeString()} | ${sizeKb} | ${nextIdx + 1}/${currentFrames.length}`;
+        timeDisplay.textContent = dt.toTimeString().split(" ")[0];
+        const sizeKb = frame.file_size
+            ? `${Math.round(frame.file_size / 1024)}KB` : "";
+        frameInfo.textContent = `${dt.toLocaleTimeString()} | ${sizeKb} | ${nextIdx + 1}/${detailFrames.length}`;
+        syncSliderToEpoch(frame.captured_at);
+
+        // Prefetch more detail frames if near edge
+        if (needsDetailRefresh(frame.captured_at)) {
+            loadDetailWindow(frame.captured_at);
+        }
 
         setTimeout(playNext, 50);
     };
     img.onerror = () => {
         if (!playing) return;
-        // Skip broken frame
-        currentIndex = nextIdx;
+        detailIdx = nextIdx;
         setTimeout(playNext, 50);
     };
     img.src = src;
