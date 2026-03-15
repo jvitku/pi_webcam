@@ -25,7 +25,6 @@ const statFrames = document.getElementById("stat-frames");
 
 let currentFrames = [];
 let currentIndex = -1;
-let playInterval = null;
 let debounceTimer = null;
 
 // --- Initialization ---
@@ -234,10 +233,12 @@ function fmtTime(d) {
 
 // --- Scrub system (noUiSlider + filmstrip) ---
 
-const FILM_WINDOW_SEC = 3 * 3600;
-let filmWindowCenter = 0;
 let scrubSlider = null;
-let scrubUpdating = false; // prevent feedback loops
+let scrubUpdating = false;
+
+// Filmstrip state: which index range is currently displayed
+let filmIdxStart = 0;
+let filmIdxEnd = 0;
 
 function initScrub() {
     const el = document.getElementById("scrub-slider");
@@ -257,7 +258,6 @@ function initScrub() {
     });
     scrubSlider = el.noUiSlider;
 
-    // While dragging — show thumbnail (fast)
     scrubSlider.on("slide", (values) => {
         if (scrubUpdating) return;
         const idx = Math.round(parseFloat(values[0]));
@@ -266,18 +266,7 @@ function initScrub() {
         }
     });
 
-    // On release — load full image + rebuild filmstrip
     scrubSlider.on("change", (values) => {
-        const idx = Math.round(parseFloat(values[0]));
-        if (idx >= 0 && idx < currentFrames.length) {
-            showFrame(idx);
-        }
-        rebuildFilmstrip(currentIndex);
-    });
-
-    // On click (not drag) — also load full image
-    scrubSlider.on("set", (values) => {
-        if (scrubUpdating) return;
         const idx = Math.round(parseFloat(values[0]));
         if (idx >= 0 && idx < currentFrames.length) {
             showFrame(idx);
@@ -290,20 +279,23 @@ function rebuildFilmstrip(centerIdx) {
     strip.innerHTML = "";
     if (currentFrames.length === 0) return;
 
-    const centerTime = currentFrames[centerIdx].captured_at;
-    filmWindowCenter = centerTime;
-    const wStart = centerTime - FILM_WINDOW_SEC / 2;
-    const wEnd = centerTime + FILM_WINDOW_SEC / 2;
+    // Show ~12 thumbnails centered on centerIdx
+    const half = 6;
+    const maxIdx = currentFrames.length - 1;
 
-    // Find frames in window
-    let iStart = 0, iEnd = currentFrames.length - 1;
-    while (iStart < currentFrames.length && currentFrames[iStart].captured_at < wStart) iStart++;
-    while (iEnd >= 0 && currentFrames[iEnd].captured_at > wEnd) iEnd--;
-    if (iStart > iEnd) return;
+    // Calculate frame index range for filmstrip
+    // Use index-based windowing (simpler, always correct)
+    const windowSize = Math.min(currentFrames.length, Math.max(12, Math.floor(currentFrames.length / 5)));
+    let iStart = Math.max(0, centerIdx - Math.floor(windowSize / 2));
+    let iEnd = Math.min(maxIdx, iStart + windowSize - 1);
+    iStart = Math.max(0, iEnd - windowSize + 1); // re-adjust if clamped at end
 
-    // Sample ~12 thumbnails from the window
+    filmIdxStart = iStart;
+    filmIdxEnd = iEnd;
+
     const count = iEnd - iStart + 1;
     const step = Math.max(1, Math.floor(count / 12));
+
     for (let i = iStart; i <= iEnd; i += step) {
         const frame = currentFrames[i];
         const div = document.createElement("div");
@@ -319,12 +311,23 @@ function rebuildFilmstrip(centerIdx) {
 }
 
 function updateFilmCursor(idx) {
-    if (currentFrames.length === 0) return;
-    const t = currentFrames[idx].captured_at;
-    const wStart = filmWindowCenter - FILM_WINDOW_SEC / 2;
-    const pct = ((t - wStart) / FILM_WINDOW_SEC) * 100;
+    if (currentFrames.length === 0 || filmIdxEnd <= filmIdxStart) return;
+    const pct = ((idx - filmIdxStart) / (filmIdxEnd - filmIdxStart)) * 100;
     document.getElementById("film-cursor").style.left =
         Math.max(0, Math.min(100, pct)) + "%";
+
+    // Rebuild filmstrip if cursor goes outside the visible window
+    if (idx < filmIdxStart || idx > filmIdxEnd) {
+        rebuildFilmstrip(idx);
+    }
+}
+
+function syncSlider(idx) {
+    if (scrubSlider) {
+        scrubUpdating = true;
+        scrubSlider.set(idx);
+        scrubUpdating = false;
+    }
 }
 
 function showFrameThumb(idx) {
@@ -334,7 +337,6 @@ function showFrameThumb(idx) {
     updateTimeDisplay(idx);
     updateFilmCursor(idx);
 
-    // Load thumbnail (fast) instead of full image
     const src = frame.thumb_path ? `/thumbs/${frame.thumb_path}` : `/images/${frame.file_path}`;
     frameImage.src = src;
     frameImage.classList.add("visible");
@@ -350,13 +352,7 @@ function showFrame(idx) {
     currentIndex = idx;
     const frame = currentFrames[idx];
     updateTimeDisplay(idx);
-
-    // Sync slider without triggering callbacks
-    if (scrubSlider) {
-        scrubUpdating = true;
-        scrubSlider.set(idx);
-        scrubUpdating = false;
-    }
+    syncSlider(idx);
     updateFilmCursor(idx);
 
     frameImage.src = `/images/${frame.file_path}`;
@@ -381,18 +377,51 @@ function stepFrame(delta) {
     if (newIdx >= 0 && newIdx < currentFrames.length) showFrame(newIdx);
 }
 
+let playing = false;
+
 function togglePlay() {
-    if (playInterval) {
-        clearInterval(playInterval);
-        playInterval = null;
+    if (playing) {
+        playing = false;
         btnPlay.textContent = "\u25B6";
     } else {
+        playing = true;
         btnPlay.textContent = "\u23F8";
-        playInterval = setInterval(() => {
-            if (currentIndex >= currentFrames.length - 1) { togglePlay(); return; }
-            stepFrame(1);
-        }, 200);
+        playNext();
     }
+}
+
+function playNext() {
+    if (!playing) return;
+    if (currentIndex >= currentFrames.length - 1) { togglePlay(); return; }
+
+    const nextIdx = currentIndex + 1;
+    const frame = currentFrames[nextIdx];
+    const src = frame.thumb_path ? `/thumbs/${frame.thumb_path}` : `/images/${frame.file_path}`;
+
+    // Preload the image, then show it and advance
+    const img = new Image();
+    img.onload = () => {
+        if (!playing) return;
+        currentIndex = nextIdx;
+        frameImage.src = src;
+        frameImage.classList.add("visible");
+        noFrames.classList.add("hidden");
+        updateTimeDisplay(nextIdx);
+        syncSlider(nextIdx);
+        updateFilmCursor(nextIdx);
+        const dt = new Date(frame.captured_at * 1000);
+        const sizeKb = frame.file_size ? `${Math.round(frame.file_size / 1024)}KB` : "";
+        frameInfo.textContent = `${dt.toLocaleTimeString()} | ${sizeKb} | ${nextIdx + 1}/${currentFrames.length}`;
+
+        setTimeout(playNext, 50);
+    };
+    img.onerror = () => {
+        if (!playing) return;
+        // Skip broken frame
+        currentIndex = nextIdx;
+        setTimeout(playNext, 50);
+    };
+    img.src = src;
 }
 
 // --- Status ---
