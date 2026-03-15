@@ -87,8 +87,12 @@ class Database:
         end: int | None = None,
         limit: int = 100,
         offset: int = 0,
+        sample: int = 1,
     ) -> tuple[list[dict[str, Any]], int]:
-        """Return (frames, total_count) for the given time range with pagination."""
+        """Return (frames, total_count) for the given time range.
+
+        If sample > 1, return every Nth frame (for efficient overview).
+        """
         conditions: list[str] = []
         params: list[Any] = []
 
@@ -106,10 +110,21 @@ class Database:
         ).fetchone()
         total = count_row[0] if count_row else 0
 
-        rows = self.conn.execute(
-            f"SELECT * FROM frames {where} ORDER BY captured_at ASC LIMIT ? OFFSET ?",  # noqa: S608
-            [*params, limit, offset],
-        ).fetchall()
+        if sample > 1:
+            # Use ROW_NUMBER to sample every Nth row
+            rows = self.conn.execute(
+                f"SELECT * FROM ("  # noqa: S608
+                f"  SELECT *, ROW_NUMBER() OVER (ORDER BY captured_at ASC) AS rn"
+                f"  FROM frames {where}"
+                f") WHERE (rn - 1) % ? = 0 LIMIT ? OFFSET ?",
+                [*params, sample, limit, offset],
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                f"SELECT * FROM frames {where}"  # noqa: S608
+                " ORDER BY captured_at ASC LIMIT ? OFFSET ?",
+                [*params, limit, offset],
+            ).fetchall()
 
         return [dict(r) for r in rows], total
 

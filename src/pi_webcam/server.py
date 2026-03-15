@@ -214,12 +214,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def list_frames(
         start: int | None = Query(default=None),
         end: int | None = Query(default=None),
-        limit: int = Query(default=100, ge=1, le=1000),
+        limit: int = Query(default=100, ge=1, le=10000),
         offset: int = Query(default=0, ge=0),
+        sample: int = Query(default=1, ge=1, le=1000),
         db: Database = Depends(get_db),
     ) -> FrameList:
         frames_data, total = db.get_frames(
             start=start, end=end, limit=limit, offset=offset,
+            sample=sample,
         )
         frames = [Frame(**f) for f in frames_data]
         return FrameList(

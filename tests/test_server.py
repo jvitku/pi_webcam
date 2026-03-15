@@ -143,7 +143,7 @@ class TestFramesAPI:
         assert response.status_code == 422
 
     def test_invalid_limit_too_high(self, app: TestClient) -> None:
-        response = app.get("/api/frames?limit=1001")
+        response = app.get("/api/frames?limit=10001")
         assert response.status_code == 422
 
 

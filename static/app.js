@@ -176,39 +176,40 @@ function toggleSettingsFullscreen() {
 
 // --- Timeline ---
 
-async function loadDay(dateStr) {
-    const dayStart = new Date(dateStr + "T00:00:00").getTime() / 1000;
-    const dayEnd = dayStart + 86399;
+let currentDayStart = 0;
+let currentDayEnd = 0;
+let totalFrameCount = 0;
 
-    // Show loading state
+async function loadDay(dateStr) {
+    currentDayStart = new Date(dateStr + "T00:00:00").getTime() / 1000;
+    currentDayEnd = currentDayStart + 86399;
+
     noFrames.textContent = "Loading...";
     noFrames.classList.remove("hidden");
     frameImage.classList.remove("visible");
 
     try {
-        const res = await fetch(`/api/frames?start=${dayStart}&end=${dayEnd}&limit=1000`);
+        // Load sampled overview — every 5th frame, up to 2000
+        const res = await fetch(
+            `/api/frames?start=${currentDayStart}&end=${currentDayEnd}&limit=2000&sample=5`
+        );
         const data = await res.json();
         currentFrames = data.frames;
-        frameCount.textContent = `${data.total}`;
+        totalFrameCount = data.total;
+        frameCount.textContent = `${totalFrameCount}`;
 
         if (currentFrames.length === 0) {
             noFrames.textContent = "No frames for this day";
-            frameImage.classList.remove("visible");
             frameInfo.textContent = "";
-            // no frames
             document.getElementById("time-start").textContent = "--:--";
             document.getElementById("time-end").textContent = "--:--";
-            document.getElementById("scrub-filmstrip").innerHTML = '<div id="scrub-cursor" class="scrub-cursor"></div>';
+            document.getElementById("scrub-filmstrip").innerHTML =
+                '<div id="scrub-cursor" class="scrub-cursor"></div>';
             return;
-        }
-
-        if (data.has_more) {
-            await loadAllFrames(dayStart, dayEnd, data.total);
         }
 
         noFrames.classList.add("hidden");
 
-        // Time range labels
         const tStart = new Date(currentFrames[0].captured_at * 1000);
         const tEnd = new Date(currentFrames[currentFrames.length - 1].captured_at * 1000);
         document.getElementById("time-start").textContent = fmtTime(tStart);
@@ -218,23 +219,12 @@ async function loadDay(dateStr) {
         showFrame(currentFrames.length - 1);
     } catch (e) {
         console.error("Failed to load frames:", e);
+        noFrames.textContent = "Error loading frames";
     }
 }
 
 function fmtTime(d) {
     return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
-}
-
-async function loadAllFrames(start, end, total) {
-    let offset = currentFrames.length;
-    while (offset < total) {
-        const res = await fetch(`/api/frames?start=${start}&end=${end}&limit=1000&offset=${offset}`);
-        const data = await res.json();
-        currentFrames = currentFrames.concat(data.frames);
-        offset += data.frames.length;
-        if (!data.has_more) break;
-    }
-    frameCount.textContent = `${currentFrames.length}`;
 }
 
 // --- Scrub system ---
@@ -654,20 +644,17 @@ async function pollNewFrames() {
     const today = localDateStr();
     if (datePicker.value !== today) return;
 
-    const dayStart = new Date(today + "T00:00:00").getTime() / 1000;
-    const dayEnd = dayStart + 86399;
-
     try {
-        const res = await fetch(`/api/frames?start=${dayStart}&end=${dayEnd}&limit=1000`);
+        const res = await fetch(
+            `/api/frames?start=${currentDayStart}&end=${currentDayEnd}&limit=2000&sample=5`
+        );
         const data = await res.json();
-        if (data.total === currentFrames.length) return;
+        if (data.total === totalFrameCount) return;
 
         const wasAtEnd = currentIndex >= currentFrames.length - 1;
         currentFrames = data.frames;
-
-        if (data.has_more) await loadAllFrames(dayStart, dayEnd, data.total);
-
-        frameCount.textContent = `${currentFrames.length}`;
+        totalFrameCount = data.total;
+        frameCount.textContent = `${totalFrameCount}`;
 
         if (wasAtEnd) showFrame(currentFrames.length - 1);
     } catch (e) { /* ignore */ }
