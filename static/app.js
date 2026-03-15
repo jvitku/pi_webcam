@@ -235,8 +235,18 @@ async function loadAllFrames(start, end, total) {
 // --- Scrub system ---
 
 let scrubInited = false;
+const FILMSTRIP_WINDOW_SEC = 3 * 3600; // 3 hours
 
 function buildFilmstrip() {
+    updateFilmstripWindow(currentIndex);
+    updateScrubPosition(currentIndex);
+    if (!scrubInited) {
+        initScrubDrag();
+        scrubInited = true;
+    }
+}
+
+function updateFilmstripWindow(idx) {
     const strip = document.getElementById("scrub-filmstrip");
     const cursor = document.getElementById("scrub-cursor");
     strip.innerHTML = "";
@@ -244,12 +254,28 @@ function buildFilmstrip() {
 
     if (currentFrames.length === 0) return;
 
-    // Fill the strip width with evenly-spaced thumbnails
-    const maxThumbs = 60;
-    const step = Math.max(1, Math.floor(currentFrames.length / maxThumbs));
+    const centerTime = currentFrames[idx].captured_at;
+    const halfWindow = FILMSTRIP_WINDOW_SEC / 2;
+    const windowStart = centerTime - halfWindow;
+    const windowEnd = centerTime + halfWindow;
 
-    for (let i = 0; i < currentFrames.length; i += step) {
-        const frame = currentFrames[i];
+    // Find frames in the window
+    const windowFrames = [];
+    for (let i = 0; i < currentFrames.length; i++) {
+        const t = currentFrames[i].captured_at;
+        if (t >= windowStart && t <= windowEnd) {
+            windowFrames.push({ frame: currentFrames[i], idx: i });
+        }
+    }
+
+    if (windowFrames.length === 0) return;
+
+    // Show up to ~40 evenly-spaced thumbs from the window
+    const maxThumbs = 40;
+    const step = Math.max(1, Math.floor(windowFrames.length / maxThumbs));
+
+    for (let i = 0; i < windowFrames.length; i += step) {
+        const { frame } = windowFrames[i];
         const div = document.createElement("div");
         div.className = "film-frame";
 
@@ -263,11 +289,13 @@ function buildFilmstrip() {
         strip.appendChild(div);
     }
 
-    updateScrubPosition(currentIndex);
-    if (!scrubInited) {
-        initScrubDrag();
-        scrubInited = true;
-    }
+    // Track center for cursor updates during drag
+    lastFilmstripIdx = idx;
+
+    // Position cursor based on time within the window
+    const t = currentFrames[idx].captured_at;
+    const cursorPct = ((t - windowStart) / FILMSTRIP_WINDOW_SEC) * 100;
+    cursor.style.left = Math.max(0, Math.min(100, cursorPct)) + "%";
 }
 
 function updateScrubPosition(idx) {
@@ -275,53 +303,81 @@ function updateScrubPosition(idx) {
     const pct = (idx / (currentFrames.length - 1)) * 100;
     document.getElementById("scrub-fill").style.width = pct + "%";
     document.getElementById("scrub-handle").style.left = pct + "%";
-    document.getElementById("scrub-cursor").style.left = pct + "%";
 }
+
+let lastFilmstripIdx = -1;
 
 function initScrubDrag() {
     const track = document.getElementById("scrub-track");
     const strip = document.getElementById("scrub-filmstrip");
     let dragging = false;
+    let dragSource = null;
 
-    function scrubToX(clientX) {
+    function scrubToX(clientX, source) {
         if (currentFrames.length === 0) return;
-        // Use the track rect for position calculation
-        const rect = track.getBoundingClientRect();
-        const pct = Math.max(0, Math.min(1,
-            (clientX - rect.left) / rect.width
-        ));
-        const idx = Math.round(pct * (currentFrames.length - 1));
+        const el = source === "strip" ? strip : track;
+        const rect = el.getBoundingClientRect();
+        let pct = (clientX - rect.left) / rect.width;
+        pct = Math.max(0, Math.min(1, pct));
+
+        let idx;
+        if (source === "strip") {
+            // Filmstrip maps to the current 3h window
+            const centerTime = currentFrames[currentIndex].captured_at;
+            const halfWindow = FILMSTRIP_WINDOW_SEC / 2;
+            const targetTime = (centerTime - halfWindow) + pct * FILMSTRIP_WINDOW_SEC;
+            // Find nearest frame to targetTime
+            idx = 0;
+            let bestDist = Infinity;
+            for (let i = 0; i < currentFrames.length; i++) {
+                const d = Math.abs(currentFrames[i].captured_at - targetTime);
+                if (d < bestDist) { bestDist = d; idx = i; }
+            }
+        } else {
+            idx = Math.round(pct * (currentFrames.length - 1));
+        }
+
         if (idx !== currentIndex) showFrame(idx);
     }
 
-    // Track + filmstrip both respond to drag
-    function onDown(x) {
+    function onDown(x, source) {
         dragging = true;
-        scrubToX(x);
+        dragSource = source;
+        scrubToX(x, source);
     }
 
-    [track, strip].forEach(el => {
-        el.addEventListener("mousedown", (e) => {
-            e.preventDefault();
-            onDown(e.clientX);
-        });
-        el.addEventListener("touchstart", (e) => {
-            onDown(e.touches[0].clientX);
-        }, { passive: true });
+    track.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        onDown(e.clientX, "track");
     });
+    track.addEventListener("touchstart", (e) => {
+        onDown(e.touches[0].clientX, "track");
+    }, { passive: true });
+
+    strip.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        onDown(e.clientX, "strip");
+    });
+    strip.addEventListener("touchstart", (e) => {
+        onDown(e.touches[0].clientX, "strip");
+    }, { passive: true });
 
     document.addEventListener("mousemove", (e) => {
-        if (dragging) scrubToX(e.clientX);
+        if (dragging) scrubToX(e.clientX, dragSource);
     });
     document.addEventListener("touchmove", (e) => {
         if (dragging) {
             e.preventDefault();
-            scrubToX(e.touches[0].clientX);
+            scrubToX(e.touches[0].clientX, dragSource);
         }
     }, { passive: false });
 
-    document.addEventListener("mouseup", () => { dragging = false; });
-    document.addEventListener("touchend", () => { dragging = false; });
+    document.addEventListener("mouseup", () => {
+        if (dragging) { dragging = false; updateFilmstripWindow(currentIndex); }
+    });
+    document.addEventListener("touchend", () => {
+        if (dragging) { dragging = false; updateFilmstripWindow(currentIndex); }
+    });
 }
 
 function showFrame(idx) {
@@ -330,6 +386,16 @@ function showFrame(idx) {
     const frame = currentFrames[idx];
     updateTimeDisplay(idx);
     updateScrubPosition(idx);
+    // Update filmstrip cursor within current window
+    if (lastFilmstripIdx >= 0 && lastFilmstripIdx < currentFrames.length) {
+        const centerTime = currentFrames[lastFilmstripIdx].captured_at;
+        const halfWindow = FILMSTRIP_WINDOW_SEC / 2;
+        const wStart = centerTime - halfWindow;
+        const t = frame.captured_at;
+        const pct = ((t - wStart) / FILMSTRIP_WINDOW_SEC) * 100;
+        document.getElementById("scrub-cursor").style.left =
+            Math.max(0, Math.min(100, pct)) + "%";
+    }
 
     frameImage.src = `/images/${frame.file_path}`;
     frameImage.classList.add("visible");
