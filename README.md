@@ -1,6 +1,83 @@
 # Pi Webcam
 
-Wildlife camera for Raspberry Pi Zero 2 W + Camera Module 3. Live video streaming (WebRTC/RTSP/HLS), automatic frame capture to disk with SQLite metadata, and a web-based timeline viewer.
+Wildlife camera for Raspberry Pi Zero 2 W + Camera Module 3. Live video streaming, automatic frame capture with timelapse viewer, and camera controls — all served from a single web UI.
+
+## How It Works
+
+### Architecture
+
+```
+┌─────────────────── Raspberry Pi Zero 2 W ───────────────────┐
+│                                                              │
+│  MediaMTX ──── H.264 HW encode ──── WebRTC / RTSP / HLS     │
+│  (owns camera)        │                                      │
+│                       │ local RTSP                           │
+│                       ▼                                      │
+│  Python App (FastAPI)                                        │
+│  ├── ffmpeg ──── decode keyframes ──── latest.jpg            │
+│  │                                        │                  │
+│  ├── Capture worker ── copy + timestamp ── YYYY/MM/DD/*.jpg  │
+│  │                                        + thumbnails       │
+│  ├── Retention worker ── age + disk watermark cleanup        │
+│  ├── Web API ── /api/frames, /api/status, /api/camera        │
+│  └── Web UI ── noUiSlider + filmstrip + WebRTC player        │
+│                                                              │
+│  SQLite DB ── frame metadata (timestamps, paths, sizes)      │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Streaming
+
+**MediaMTX** exclusively owns the camera and handles all video streaming. It uses the Pi's hardware H.264 encoder (VideoCore IV) to encode 720p at 15fps with minimal CPU cost. Clients can connect via:
+
+- **WebRTC** (port 8889) — lowest latency (~250ms), used by the web UI
+- **RTSP** (port 8554) — for VLC or other media players
+- **HLS** (port 8888) — fallback for browsers without WebRTC support
+
+The web UI auto-detects the hostname from the browser's address bar, so streaming works over both local WiFi (`picam.local`) and VPN (`10.0.0.X`) without configuration changes.
+
+### Frame Capture
+
+**ffmpeg** connects to the local RTSP stream and extracts frames using `-update 1`, which continuously overwrites a single `latest.jpg` file. The Python capture worker polls this file every 0.5s for modification time changes, then copies it to a timestamped file (`YYYYMMDD_HHMMSS.jpg`) in a date-based directory structure (`YYYY/MM/DD/`).
+
+Each captured frame also gets a 320x180 thumbnail generated via Pillow, stored in a `thumb/` subdirectory alongside the full frame. Frame metadata (timestamp, file size, paths) is recorded in SQLite.
+
+The default capture rate is 0.5 FPS (one frame every 2 seconds), configurable from the web UI.
+
+### Timeline Viewer
+
+The viewer uses a two-tier data loading strategy for responsiveness:
+
+1. **Sampled overview** — on page load, fetches ~1000 evenly-sampled frames covering the entire day. This powers the main slider (noUiSlider) for fast coarse navigation. Thumbnails are shown while dragging.
+
+2. **Detail window** — when you press play or use arrow keys, 200 full-density frames are fetched around the current position. Arrows step through these frame-by-frame (2s intervals). Playback skips frames based on the speed dropdown selection.
+
+Prefetching starts at 50% through the detail window, loading the next chunk forward in the background (append mode). This keeps playback smooth without stalling.
+
+A filmstrip of ~12 thumbnail previews shows the surrounding context, with a blue cursor line tracking the current position. The filmstrip auto-rebuilds as you navigate.
+
+### Camera Controls
+
+Camera settings (exposure, metering, brightness, contrast, saturation) are adjusted in real-time via MediaMTX's HTTP API (`PATCH /v3/config/paths/patch/cam`). These are "hot-reloadable" parameters — they take effect immediately without restarting the camera pipeline.
+
+Focus controls (AF mode, lens position) are not exposed in the UI because they require a full pipeline restart, which temporarily crashes the stream.
+
+### Retention
+
+A background worker runs every 15 minutes and enforces two cleanup rules:
+
+1. **Age limit** — frames older than `RETENTION_DAYS` (default 14) are deleted
+2. **Disk watermark** — if free space drops below `DISK_WATERMARK_MB` (default 5 GB), the oldest frames are deleted in batches until the threshold is met
+
+Both frame files, thumbnails, and database entries are cleaned up. Empty date directories are removed.
+
+### System Monitoring
+
+The status bar shows live system stats updated every 10 seconds:
+
+- CPU usage, temperature, RAM usage, network throughput
+- Disk free space, total frame count, capture rate
+- Throttling indicators (under-voltage, thermal throttling, frequency capping) — read from `vcgencmd get_throttled`
 
 ## Hardware Required
 
@@ -9,321 +86,137 @@ Wildlife camera for Raspberry Pi Zero 2 W + Camera Module 3. Live video streamin
 - Pi Zero camera ribbon cable (15→22 pin adapter — the standard cable does not fit)
 - microSD card, 128 GB+ (A2 class recommended)
 - 5V/2.5A micro-USB power supply
-- Stick-on aluminum heatsink for the SoC (required — continuous encoding throttles without it)
+- Stick-on aluminum heatsink (required — continuous encoding throttles without it)
 
 ## Setup Guide
 
-Everything below is done over SSH from another machine. You need: a Mac/Linux/Windows machine with an SD card reader and SSH client.
+Everything below is done over SSH from another machine.
 
 ### Step 1: Flash the SD Card
 
-On your computer (not the Pi):
-
 1. Install [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
-2. Open it and select:
-   - **Device:** Raspberry Pi Zero 2 W
-   - **OS:** Raspberry Pi OS Lite (64-bit, Bookworm)
-   - **Storage:** your SD card
-3. Click the **gear icon** (OS Customisation) and set:
+2. Select **Raspberry Pi Zero 2 W**, **Raspberry Pi OS Lite (64-bit, Bookworm)**
+3. In OS Customisation (gear icon):
    - **Hostname:** `picam`
-   - **Enable SSH:** check it, select **Allow public-key authentication only**
-   - Paste your public key (run `cat ~/.ssh/id_ed25519.pub` on your machine to get it; if it doesn't exist, run `ssh-keygen -t ed25519` first)
-   - **WiFi:** enter your home network SSID and password
-   - **Locale:** set your timezone (important for accurate frame timestamps)
-4. Click **Write** and wait for it to finish
+   - **SSH:** public-key only (paste your `~/.ssh/id_ed25519.pub`)
+   - **WiFi:** your home network SSID + password, **country code must match your location** (controls which radio channels are used)
+   - **Locale:** set your timezone
+4. Flash and insert into Pi
 
 ### Step 2: Assemble and Boot
 
-1. Attach the heatsink to the Pi's SoC chip
-2. Connect the Camera Module 3 via the ribbon cable (gold contacts face the board on the Zero)
-3. Insert the SD card
-4. Plug in power — the green LED will blink during boot
+1. Attach heatsink to SoC
+2. Connect Camera Module 3 (gold contacts face the board on the Zero)
+3. Insert SD card, power on
+4. Wait ~90 seconds, then: `ssh pi@picam.local`
 
-Wait ~90 seconds for first boot (it resizes the filesystem and generates SSH keys).
-
-### Step 3: Connect via SSH
-
-```bash
-ssh pi@picam.local
-```
-
-If `picam.local` doesn't resolve, find the Pi's IP from your router admin page and use `ssh pi@<IP>`.
-
-### Step 4: Verify Camera
+### Step 3: Verify Camera
 
 ```bash
 rpicam-hello --list-cameras
-```
-
-Expected output includes `imx708` with available modes. If you see "no cameras available", check the ribbon cable connection and orientation.
-
-Quick test:
-```bash
+# Should show: imx708
 rpicam-still -o test.jpg
-ls -lh test.jpg
 ```
 
-### Step 5: Get the Project on the Pi
-
-**Option A: Git clone (recommended)** — on the Pi via SSH:
+### Step 4: Deploy
 
 ```bash
-# If your repo is public:
+# Clone the project
 git clone https://github.com/jvitku/pi_webcam.git ~/pi_webcam
 
-# If private, use SSH agent forwarding from your Mac:
-#   ssh -A pi@picam.local
-# then:
-#   git clone git@github.com:jvitku/pi_webcam.git ~/pi_webcam
-```
-
-**Option B: rsync from your Mac** (if you prefer not to use git on the Pi):
-
-```bash
-# Run this on your Mac, not the Pi:
-cd /path/to/pi_webcam
-rsync -avz --exclude '.venv' --exclude '__pycache__' --exclude '.git' \
-  --exclude '.mypy_cache' --exclude '.pytest_cache' --exclude '.ruff_cache' \
-  . pi@picam.local:~/pi_webcam/
-```
-
-### Step 6: Run the Installer
-
-**On the Pi** (SSH) — must be run from the project directory:
-
-```bash
+# Run the installer
 cd ~/pi_webcam
 sudo bash deploy/install.sh
 ```
 
-This is idempotent (safe to re-run) and does:
-- Installs system packages (ffmpeg, sqlite3, python3)
-- Configures 256 MB swap
-- Optimizes SD card mount options (`noatime`, `commit=60`)
-- Downloads and installs MediaMTX v1.12.0 (ARM64)
-- Copies the app to `/opt/pi_webcam`, installs Python deps
-- Creates data directory at `/data/pi_webcam/frames/`
-- Installs and enables systemd services
-- Configures journal log rotation (50 MB max)
+The installer is idempotent (safe to re-run). It installs system packages, MediaMTX, Python deps, systemd services, and configures swap/SD card optimizations.
 
-The installer prints the URLs when done.
-
-### Step 7: Verify Everything is Running
-
-```bash
-# Both services should show "active (running)"
-sudo systemctl status mediamtx
-sudo systemctl status pi-webcam
-
-# Watch live logs
-journalctl -u pi-webcam -f
-
-# Check RTSP stream is up
-ffprobe -v quiet -i rtsp://localhost:8554/cam -t 1 && echo "RTSP OK"
-
-# Check temperature (should be under 70C with heatsink)
-vcgencmd measure_temp
-
-# Check disk space
-df -h /data
-```
-
-### Step 8: Open in Browser
-
-From any device on your home network:
+### Step 5: Open in Browser
 
 | What | URL |
 |---|---|
-| **Web UI** (live stream + timeline viewer) | `http://picam.local:8080` |
-| **RTSP stream** (for VLC, etc.) | `rtsp://picam.local:8554/cam` |
-| **API docs** (auto-generated) | `http://picam.local:8080/docs` |
-
-The web UI shows the live WebRTC stream at the top and a timeline slider at the bottom. Frames start appearing after a few seconds.
+| **Web UI** | `http://picam.local:8080` |
+| **RTSP stream** | `rtsp://picam.local:8554/cam` |
+| **API docs** | `http://picam.local:8080/docs` |
 
 ## Configuration
-
-Edit on the Pi:
 
 ```bash
 sudo nano /etc/pi_webcam/pi-webcam.env
 ```
 
-Key settings:
-
 ```env
-# Capture rate (default: 0.5 = one frame every 2 seconds)
-PI_WEBCAM_CAPTURE_FPS=0.5
-
-# Keep at least 5 GB free on SD card (oldest frames auto-deleted)
-PI_WEBCAM_DISK_WATERMARK_MB=5120
-
-# Auto-delete frames older than 14 days
-PI_WEBCAM_RETENTION_DAYS=14
-
-# JPEG quality: 1=best/largest, 31=worst/smallest
-PI_WEBCAM_JPEG_QUALITY=3
-
-# Optional basic auth
-PI_WEBCAM_AUTH_USERNAME=admin
+PI_WEBCAM_CAPTURE_FPS=0.5          # frames per second (0.5 = every 2s)
+PI_WEBCAM_DISK_WATERMARK_MB=5120   # keep 5 GB free
+PI_WEBCAM_RETENTION_DAYS=14        # delete frames older than 14 days
+PI_WEBCAM_JPEG_QUALITY=3           # 1=best, 31=worst
+PI_WEBCAM_AUTH_USERNAME=admin      # optional basic auth
 PI_WEBCAM_AUTH_PASSWORD=changeme
 ```
 
-After editing:
-
-```bash
-sudo systemctl restart pi-webcam
-```
-
-### Camera Settings
-
-Edit MediaMTX config:
+Camera settings via MediaMTX:
 
 ```bash
 sudo nano /etc/mediamtx/mediamtx.yml
 ```
 
-Common changes:
-
 ```yaml
-# Resolution (default 720p — increase for better quality, more CPU)
 rpiCameraWidth: 1280
 rpiCameraHeight: 720
-
-# Framerate for live stream
 rpiCameraFPS: 15
-
-# Bitrate (higher = better quality, more bandwidth)
 rpiCameraBitrate: 2500000
-
-# Silent fixed-focus (no AF motor clicks — better for wildlife)
+# Silent fixed-focus for wildlife:
 rpiCameraAfMode: manual
-rpiCameraLensPosition: 0.0   # infinity focus
+rpiCameraLensPosition: 0.0
 ```
 
-After editing:
-
-```bash
-sudo systemctl restart mediamtx
-# Wait a few seconds, then restart the app too
-sudo systemctl restart pi-webcam
-```
+After changes: `sudo systemctl restart mediamtx && sudo systemctl restart pi-webcam`
 
 ## Storage
 
-At the default 0.5 FPS with ~150 KB per JPEG:
+At 0.5 FPS, ~50 KB per JPEG:
 
-| SD Card | Retention (approx) |
+| SD Card | Approx. Retention |
 |---|---|
-| 128 GB | ~18 days |
-| 256 GB | ~38 days |
-| 512 GB | ~78 days |
+| 128 GB | ~30 days |
+| 256 GB | ~60 days |
 
-The retention system runs every 15 minutes and enforces two rules:
-1. **Age limit:** frames older than `RETENTION_DAYS` are deleted
-2. **Disk watermark:** if free space drops below `DISK_WATERMARK_MB` (default 5 GB), the oldest frames are deleted until there's enough space
-
-Both frame files and thumbnails are removed, and empty date directories are cleaned up.
-
-## Troubleshooting
-
-### Service won't start
-
-```bash
-# Check logs for errors
-journalctl -u pi-webcam -n 50 --no-pager
-journalctl -u mediamtx -n 50 --no-pager
-```
-
-### Camera not detected
-
-```bash
-# Check if the camera device exists
-ls /dev/video*
-rpicam-hello --list-cameras
-
-# If nothing shows up:
-# 1. Power off, reseat the ribbon cable (gold contacts face the board)
-# 2. Make sure you're using the Pi Zero adapter cable (15→22 pin)
-```
-
-### High CPU temperature
-
-```bash
-vcgencmd measure_temp
-# Should be under 70C. If higher:
-# - Attach a heatsink
-# - Reduce resolution in mediamtx.yml (try 640x480)
-# - Reduce FPS (try rpiCameraFPS: 10)
-```
-
-### Out of disk space
-
-```bash
-df -h /data
-
-# Manual cleanup: delete frames older than 3 days
-sqlite3 /data/pi_webcam/pi_webcam.db "SELECT COUNT(*) FROM frames;"
-
-# Or reduce DISK_WATERMARK_MB and restart
-```
-
-### Reboot survival
-
-Both services are enabled via systemd and start automatically on boot. To verify:
-
-```bash
-sudo reboot
-# Wait ~2 minutes, then reconnect:
-ssh pi@picam.local
-sudo systemctl status mediamtx pi-webcam
-```
-
-## Updating
-
-**If using git** (on the Pi):
-
-```bash
-cd ~/pi_webcam
-git pull -r
-sudo bash deploy/install.sh
-```
-
-**If using rsync** (from your Mac):
-
-```bash
-cd /path/to/pi_webcam
-rsync -avz --exclude '.venv' --exclude '__pycache__' --exclude '.git' \
-  --exclude '.mypy_cache' --exclude '.pytest_cache' --exclude '.ruff_cache' \
-  . pi@picam.local:~/pi_webcam/
-
-# Then on the Pi:
-cd ~/pi_webcam
-sudo bash deploy/install.sh
-```
+The disk watermark (default 5 GB free) auto-deletes the oldest frames before the card fills up.
 
 ## Development
 
-Quick deploy after code changes (on the Pi):
+Quick deploy after code changes:
 
 ```bash
-cd ~/pi_webcam && git pull -r && sudo cp -r static /opt/pi_webcam/ && sudo systemctl restart pi-webcam
+cd ~/pi_webcam && git pull -r && sudo cp -r src static /opt/pi_webcam/ && sudo systemctl restart pi-webcam
 ```
 
-For full redeploy (dependencies changed, service files updated, etc.):
+Full redeploy (dependencies/services changed):
 
 ```bash
 cd ~/pi_webcam && git pull -r && sudo bash deploy/install.sh
 ```
 
-## Architecture
+## Troubleshooting
 
+```bash
+# Check service status
+sudo systemctl status mediamtx pi-webcam
+
+# Watch logs
+journalctl -u pi-webcam -f
+
+# Check temperature
+vcgencmd measure_temp
+
+# Check throttling
+vcgencmd get_throttled
+# 0x0 = OK, 0x50005 = under-voltage + throttled
+
+# Check disk
+df -h /data
 ```
-MediaMTX (camera + streaming) ──RTSP──> Python App (FastAPI)
-                                         ├── Capture worker (ffmpeg → JPEG + thumbnail)
-                                         ├── Retention worker (age + disk watermark cleanup)
-                                         ├── Web API (frames, status, days)
-                                         └── Web UI (live stream + timeline slider)
-                                              │
-                                         SQLite DB + JPEG files on disk
-                                         (date-based dirs: YYYY/MM/DD/)
-```
+
+## Remote Access
+
+The web UI works over VPN (e.g. WireGuard, Tailscale) — stream URLs are automatically derived from the browser's hostname, so no configuration change is needed when accessing via VPN IP instead of `picam.local`.
