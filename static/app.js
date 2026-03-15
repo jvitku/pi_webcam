@@ -246,31 +246,30 @@ function initScrub() {
         start: 0,
         step: 1,
         range: { min: 0, max: 1 },
-        tooltips: {
-            to: (v) => {
-                const idx = Math.round(v);
-                if (idx >= 0 && idx < currentFrames.length) {
-                    return fmtTime(new Date(currentFrames[idx].captured_at * 1000));
-                }
-                return "";
-            },
-        },
     });
     scrubSlider = el.noUiSlider;
 
+    let userDragging = false;
+
+    // "start" fires when user grabs the handle
+    scrubSlider.on("start", () => {
+        userDragging = true;
+        if (playing) togglePlay();
+    });
+
     // "slide" fires continuously during drag — show thumbnail (fast)
     scrubSlider.on("slide", (values) => {
-        if (scrubUpdating) return;
-        if (playing) togglePlay(); // stop playback if user grabs slider
+        if (!userDragging) return;
         const idx = Math.round(parseFloat(values[0]));
         if (idx >= 0 && idx < currentFrames.length) {
             showFrameThumb(idx);
         }
     });
 
-    // "change" fires on release — load full image + rebuild filmstrip
-    scrubSlider.on("change", (values) => {
-        if (scrubUpdating) return;
+    // "end" fires when user releases — load full image + rebuild
+    scrubSlider.on("end", (values) => {
+        if (!userDragging) return;
+        userDragging = false;
         const idx = Math.round(parseFloat(values[0]));
         if (idx >= 0 && idx < currentFrames.length) {
             showFrame(idx);

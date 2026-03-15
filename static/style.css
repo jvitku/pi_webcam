@@ -334,21 +334,24 @@ video {
 
 .tl-btn {
     background: none;
-    border: none;
+    border: 1px solid var(--border);
     color: var(--text-dim);
-    font-size: 0.8rem;
+    font-size: 1rem;
     padding: 0;
     cursor: pointer;
-    border-radius: 6px;
+    border-radius: 8px;
     -webkit-tap-highlight-color: transparent;
-    min-width: 32px;
-    min-height: 32px;
+    min-width: 44px;
+    min-height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
 }
 
-.tl-btn:active { color: var(--text); }
+.tl-btn:active { color: #fff; background: var(--surface-hover); }
 
 .tl-time-display {
     font-family: "SF Mono", "Menlo", monospace;
@@ -414,17 +417,6 @@ video {
 #scrub-slider .noUi-handle::before,
 #scrub-slider .noUi-handle::after {
     display: none !important;
-}
-
-#scrub-slider .noUi-tooltip {
-    background: rgba(0,0,0,0.85) !important;
-    color: #fff !important;
-    border: none !important;
-    border-radius: 6px !important;
-    font-size: 0.75rem !important;
-    font-family: "SF Mono", "Menlo", monospace !important;
-    padding: 0.2rem 0.5rem !important;
-    bottom: 28px !important;
 }
 
 #scrub-slider .noUi-touch-area {
