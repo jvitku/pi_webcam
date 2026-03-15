@@ -394,11 +394,17 @@ video {
     background: rgba(255,255,255,0.12);
     border-radius: 2px;
     cursor: pointer;
+    /* Expand touch area without changing visual size */
+    padding: 12px 0;
+    margin: -12px 0;
+    background-clip: content-box;
 }
 
 .scrub-fill {
     position: absolute;
-    left: 0; top: 0; bottom: 0;
+    left: 0;
+    top: 12px;
+    height: 4px;
     background: var(--accent);
     border-radius: 2px;
     pointer-events: none;
@@ -406,25 +412,27 @@ video {
 
 .scrub-handle {
     position: absolute;
-    top: 50%;
-    width: 14px;
-    height: 14px;
+    top: 14px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
     background: var(--accent);
     transform: translate(-50%, -50%);
     left: 0%;
     pointer-events: none;
     box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    z-index: 2;
 }
 
 .scrub-filmstrip {
     position: relative;
     display: flex;
     gap: 1px;
-    height: 40px;
+    height: 44px;
     overflow: hidden;
     border-radius: 4px;
     margin-top: 0.2rem;
+    cursor: pointer;
 }
 
 .scrub-filmstrip .film-frame {

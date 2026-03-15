@@ -329,14 +329,14 @@ function initScrubDrag() {
         const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
 
         let idx;
-        if (source === "strip") {
+        if (source === "strip" && filmWindowEnd > filmWindowStart) {
             const targetTime = filmWindowStart + pct * (filmWindowEnd - filmWindowStart);
             idx = findNearestIdx(targetTime);
         } else {
             idx = Math.round(pct * (currentFrames.length - 1));
         }
 
-        if (idx !== currentIndex) showFrame(idx);
+        showFrame(idx);
     }
 
     [track, strip].forEach(el => {
