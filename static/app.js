@@ -396,7 +396,8 @@ function playNext() {
 
     const nextIdx = currentIndex + 1;
     const frame = currentFrames[nextIdx];
-    const src = frame.thumb_path ? `/thumbs/${frame.thumb_path}` : `/images/${frame.file_path}`;
+    // Use full-res image for playback
+    const src = `/images/${frame.file_path}`;
 
     // Preload the image, then show it and advance
     const img = new Image();
@@ -654,6 +655,7 @@ async function resetCameraDefaults() {
 async function pollNewFrames() {
     const today = localDateStr();
     if (datePicker.value !== today) return;
+    if (playing) return; // don't interrupt playback
 
     try {
         const res = await fetch(
@@ -667,7 +669,26 @@ async function pollNewFrames() {
         totalFrameCount = data.total;
         frameCount.textContent = `${totalFrameCount}`;
 
-        if (wasAtEnd) showFrame(currentFrames.length - 1);
+        // Update slider range
+        if (scrubSlider) {
+            scrubSlider.updateOptions({
+                range: { min: 0, max: Math.max(1, currentFrames.length - 1) },
+            }, false); // false = don't fire events
+        }
+
+        // Update time labels
+        if (currentFrames.length > 0) {
+            document.getElementById("time-start").textContent =
+                fmtTime(new Date(currentFrames[0].captured_at * 1000));
+            document.getElementById("time-end").textContent =
+                fmtTime(new Date(currentFrames[currentFrames.length - 1].captured_at * 1000));
+        }
+
+        // If user was at the latest frame, follow new frames
+        if (wasAtEnd) {
+            showFrame(currentFrames.length - 1);
+            rebuildFilmstrip(currentIndex);
+        }
     } catch (e) { /* ignore */ }
 }
 
