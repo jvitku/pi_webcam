@@ -249,7 +249,7 @@ let filmIdxEnd = 0;
 let detailFrames = [];
 let detailIdx = -1;
 let detailLoading = false;
-const DETAIL_WINDOW_SEC = 600; // 10 minutes of frames per window
+const DETAIL_FRAME_COUNT = 200; // frames per prefetch
 
 function initScrub() {
     const el = document.getElementById("scrub-slider");
@@ -288,32 +288,31 @@ function initScrub() {
 
 // --- Detail window loading ---
 
-async function loadDetailWindow(startEpoch, forward) {
+async function loadDetailWindow(startEpoch, forward, sampleRate) {
     if (detailLoading) return;
     detailLoading = true;
+    const sample = sampleRate || 1;
+    // Estimate time span needed for DETAIL_FRAME_COUNT frames
+    // At 0.5fps with sample=5: each sampled frame ~10s apart, 200 frames ~2000s
+    const estimatedSpan = DETAIL_FRAME_COUNT * sample * 2; // 2s per raw frame
     let start, end;
     if (forward) {
-        // Load window ahead of current position
         start = startEpoch;
-        end = startEpoch + DETAIL_WINDOW_SEC;
+        end = startEpoch + estimatedSpan;
     } else {
-        // Load centered (for arrows / slider release)
-        start = startEpoch - DETAIL_WINDOW_SEC / 2;
-        end = startEpoch + DETAIL_WINDOW_SEC / 2;
+        start = startEpoch - estimatedSpan / 2;
+        end = startEpoch + estimatedSpan / 2;
     }
     try {
-        const res = await fetch(
-            `/api/frames?start=${start}&end=${end}&limit=5000`
-        );
+        const url = `/api/frames?start=${start}&end=${end}&limit=${DETAIL_FRAME_COUNT}&sample=${sample}`;
+        const res = await fetch(url);
         const data = await res.json();
         if (forward && detailFrames.length > 0) {
-            // Append new frames, keeping current position valid
             const lastExisting = detailFrames[detailFrames.length - 1].captured_at;
             const newFrames = data.frames.filter(f => f.captured_at > lastExisting);
             detailFrames = detailFrames.concat(newFrames);
         } else {
             detailFrames = data.frames;
-            // Find the frame closest to startEpoch
             detailIdx = 0;
             let bestDist = Infinity;
             for (let i = 0; i < detailFrames.length; i++) {
@@ -436,7 +435,7 @@ async function showFrameFromSampled(idx) {
     const frame = currentFrames[idx];
     displayFrame(frame, "");
     syncSliderToEpoch(frame.captured_at);
-    await loadDetailWindow(frame.captured_at, false);
+    await loadDetailWindow(frame.captured_at, false, 1);
 }
 
 function showFrame(idx) {
@@ -456,7 +455,7 @@ function showFrame(idx) {
 async function stepFrame(delta) {
     if (detailFrames.length === 0 || detailIdx < 0) {
         if (currentIndex >= 0 && currentIndex < currentFrames.length) {
-            await loadDetailWindow(currentFrames[currentIndex].captured_at, false);
+            await loadDetailWindow(currentFrames[currentIndex].captured_at, false, 1);
         }
         if (detailFrames.length === 0) return;
     }
@@ -469,10 +468,10 @@ async function stepFrame(delta) {
     displayFrame(frame, `${detailIdx + 1}/${detailFrames.length}`);
     syncSliderToEpoch(frame.captured_at);
 
-    // Prefetch if near edge
+    // Prefetch if near edge (full density for arrows)
     const pct = detailIdx / detailFrames.length;
-    if (pct > 0.8) loadDetailWindow(frame.captured_at, true);
-    else if (pct < 0.2) loadDetailWindow(frame.captured_at, false);
+    if (pct > 0.8) loadDetailWindow(frame.captured_at, true, 1);
+    else if (pct < 0.2) loadDetailWindow(frame.captured_at, false, 1);
 }
 
 let playing = false;
@@ -484,6 +483,9 @@ function togglePlay() {
     } else {
         playing = true;
         btnPlay.textContent = "\u23F8";
+        // Clear detail frames to reload at play sample rate
+        detailFrames = [];
+        detailIdx = -1;
         playNext();
     }
 }
@@ -495,22 +497,24 @@ function getPlaySkip() {
 async function playNext() {
     if (!playing) return;
 
-    // Ensure we have detail frames
+    const skip = getPlaySkip();
+
+    // Ensure we have detail frames (sampled at play speed)
     if (detailFrames.length === 0 || detailIdx < 0) {
         if (currentIndex >= 0 && currentIndex < currentFrames.length) {
-            await loadDetailWindow(currentFrames[currentIndex].captured_at, true);
+            await loadDetailWindow(currentFrames[currentIndex].captured_at, true, skip);
         }
         if (detailFrames.length === 0) { togglePlay(); return; }
     }
 
-    const skip = getPlaySkip();
-    let nextIdx = detailIdx + skip;
+    // Play steps by 1 through already-sampled detail frames
+    let nextIdx = detailIdx + 1;
 
     // If past end, load more frames forward
     if (nextIdx >= detailFrames.length) {
         const lastEpoch = detailFrames[detailFrames.length - 1].captured_at;
-        await loadDetailWindow(lastEpoch, true);
-        nextIdx = detailIdx + skip;
+        await loadDetailWindow(lastEpoch, true, skip);
+        nextIdx = detailIdx + 1;
         if (nextIdx >= detailFrames.length) { togglePlay(); return; }
     }
 
@@ -534,7 +538,7 @@ async function playNext() {
         // Prefetch forward when past 50% of window
         if (nextIdx > detailFrames.length * 0.5) {
             const lastEpoch = detailFrames[detailFrames.length - 1].captured_at;
-            loadDetailWindow(lastEpoch, true);
+            loadDetailWindow(lastEpoch, true, skip);
         }
 
         setTimeout(playNext, 50);
