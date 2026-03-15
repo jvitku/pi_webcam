@@ -214,8 +214,12 @@ async function loadDay(dateStr) {
         document.getElementById("time-start").textContent = fmtTime(tStart);
         document.getElementById("time-end").textContent = fmtTime(tEnd);
 
-        // Set slider range and build filmstrip
-        document.getElementById("scrub-slider").max = currentFrames.length - 1;
+        // Update slider range and build filmstrip
+        if (scrubSlider) {
+            scrubSlider.updateOptions({
+                range: { min: 0, max: Math.max(1, currentFrames.length - 1) },
+            });
+        }
         rebuildFilmstrip(currentFrames.length - 1);
         showFrame(currentFrames.length - 1);
     } catch (e) {
@@ -228,18 +232,42 @@ function fmtTime(d) {
     return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
 }
 
-// --- Scrub system (KISS) ---
+// --- Scrub system (noUiSlider + filmstrip) ---
 
 const FILM_WINDOW_SEC = 3 * 3600;
-let filmWindowCenter = 0; // epoch of filmstrip center
+let filmWindowCenter = 0;
+let scrubSlider = null;
+let scrubUpdating = false; // prevent feedback loops
 
 function initScrub() {
-    const slider = document.getElementById("scrub-slider");
-    slider.addEventListener("input", () => {
-        showFrame(parseInt(slider.value));
+    const el = document.getElementById("scrub-slider");
+    noUiSlider.create(el, {
+        start: 0,
+        step: 1,
+        range: { min: 0, max: 1 },
+        tooltips: {
+            to: (v) => {
+                const idx = Math.round(v);
+                if (idx >= 0 && idx < currentFrames.length) {
+                    return fmtTime(new Date(currentFrames[idx].captured_at * 1000));
+                }
+                return "";
+            },
+        },
     });
-    // Rebuild filmstrip when slider is released at a new position
-    slider.addEventListener("change", () => {
+    scrubSlider = el.noUiSlider;
+
+    // While dragging — update frame on every move
+    scrubSlider.on("update", (values) => {
+        if (scrubUpdating) return;
+        const idx = Math.round(parseFloat(values[0]));
+        if (idx !== currentIndex && idx >= 0 && idx < currentFrames.length) {
+            showFrame(idx);
+        }
+    });
+
+    // On release — rebuild filmstrip around new position
+    scrubSlider.on("change", () => {
         rebuildFilmstrip(currentIndex);
     });
 }
@@ -292,8 +320,12 @@ function showFrame(idx) {
     const frame = currentFrames[idx];
     updateTimeDisplay(idx);
 
-    // Sync slider
-    document.getElementById("scrub-slider").value = idx;
+    // Sync slider without triggering update callback
+    if (scrubSlider) {
+        scrubUpdating = true;
+        scrubSlider.set(idx);
+        scrubUpdating = false;
+    }
     // Sync filmstrip cursor
     updateFilmCursor(idx);
 

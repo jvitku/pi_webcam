@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Pi Webcam</title>
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nouislider@15.8.1/dist/nouislider.min.css">
     <link rel="apple-touch-icon" href="data:,">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -46,7 +47,7 @@
             </div>
             <div class="scrub-row">
                 <span id="time-start" class="scrub-time">--:--</span>
-                <input type="range" id="scrub-slider" min="0" max="0" value="0" step="1">
+                <div id="scrub-slider" class="scrub-slider"></div>
                 <span id="time-end" class="scrub-time">--:--</span>
             </div>
             <div class="filmstrip-container">
@@ -142,6 +143,7 @@
         const WEBRTC_URL = "{{ webrtc_url }}";
         const HLS_URL = "{{ hls_url }}";
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/nouislider@15.8.1/dist/nouislider.min.js"></script>
     <script src="/static/app.js"></script>
 </body>
 </html>

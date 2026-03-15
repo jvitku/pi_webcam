@@ -371,8 +371,8 @@ video {
 .scrub-row {
     display: flex;
     align-items: center;
-    gap: 0.3rem;
-    padding: 0.15rem 0;
+    gap: 0.5rem;
+    padding: 0.4rem 0 0.2rem;
 }
 
 .scrub-time {
@@ -382,23 +382,47 @@ video {
     white-space: nowrap;
 }
 
-.scrub-row input[type="range"] {
+.scrub-slider {
     flex: 1;
-    height: 4px;
-    -webkit-appearance: none;
-    background: rgba(255,255,255,0.12);
-    border-radius: 2px;
-    outline: none;
 }
 
-.scrub-row input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
+/* noUiSlider overrides for dark theme */
+.scrub-slider .noUi-target {
+    background: rgba(255,255,255,0.12);
+    border: none;
+    box-shadow: none;
+    height: 4px;
+}
+
+.scrub-slider .noUi-connect {
+    background: var(--accent);
+}
+
+.scrub-slider .noUi-handle {
     width: 16px;
     height: 16px;
     border-radius: 50%;
     background: var(--accent);
-    cursor: pointer;
+    border: none;
     box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    cursor: pointer;
+    top: -7px;
+    right: -8px;
+}
+
+.scrub-slider .noUi-handle::before,
+.scrub-slider .noUi-handle::after {
+    display: none;
+}
+
+.scrub-slider .noUi-tooltip {
+    background: rgba(0,0,0,0.8);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-family: "SF Mono", "Menlo", monospace;
+    padding: 0.15rem 0.4rem;
 }
 
 .filmstrip-container {
