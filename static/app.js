@@ -485,9 +485,6 @@ function togglePlay() {
     } else {
         playing = true;
         btnPlay.textContent = "\u23F8";
-        // Clear detail frames to reload at play sample rate
-        detailFrames = [];
-        detailIdx = -1;
         playNext();
     }
 }
@@ -497,15 +494,8 @@ function getPlaySkip() {
 }
 
 function onPlaySpeedChange() {
-    if (!playing) return;
-    // Re-sample: keep current position, reload detail at new rate
-    const epoch = detailIdx >= 0 && detailIdx < detailFrames.length
-        ? detailFrames[detailIdx].captured_at
-        : currentFrames[currentIndex]?.captured_at;
-    if (!epoch) return;
-    detailFrames = [];
-    detailIdx = -1;
-    // playNext will reload with new skip rate
+    // No action needed — playNext reads getPlaySkip() each iteration
+    // and prefetch will use the new rate automatically
 }
 
 async function playNext() {
