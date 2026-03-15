@@ -188,9 +188,14 @@ async function loadDay(dateStr) {
     frameImage.classList.remove("visible");
 
     try {
-        // Load sampled overview — every 5th frame, up to 2000
+        // First get total count, then sample to fit in ~1000 frames
+        const countRes = await fetch(
+            `/api/frames?start=${currentDayStart}&end=${currentDayEnd}&limit=1`
+        );
+        const countData = await countRes.json();
+        const sampleRate = Math.max(1, Math.ceil(countData.total / 1000));
         const res = await fetch(
-            `/api/frames?start=${currentDayStart}&end=${currentDayEnd}&limit=2000&sample=5`
+            `/api/frames?start=${currentDayStart}&end=${currentDayEnd}&limit=2000&sample=${sampleRate}`
         );
         const data = await res.json();
         currentFrames = data.frames;
@@ -662,8 +667,9 @@ async function pollNewFrames() {
     if (playing) return; // don't interrupt playback
 
     try {
+        const sampleRate = Math.max(1, Math.ceil(totalFrameCount / 1000));
         const res = await fetch(
-            `/api/frames?start=${currentDayStart}&end=${currentDayEnd}&limit=2000&sample=5`
+            `/api/frames?start=${currentDayStart}&end=${currentDayEnd}&limit=2000&sample=${sampleRate}`
         );
         const data = await res.json();
         if (data.total === totalFrameCount) return;
