@@ -44,18 +44,14 @@
                 <button id="btn-play" class="tl-btn">&#9654;</button>
                 <span id="frame-count" class="tl-count">0</span>
             </div>
-            <div class="scrub-area" id="scrub-area">
-                <div class="scrub-slider-row">
-                    <span id="time-start" class="scrub-time">--:--</span>
-                    <div class="scrub-track" id="scrub-track">
-                        <div class="scrub-fill" id="scrub-fill"></div>
-                        <div class="scrub-handle" id="scrub-handle"></div>
-                    </div>
-                    <span id="time-end" class="scrub-time">--:--</span>
-                </div>
-                <div class="scrub-filmstrip" id="scrub-filmstrip">
-                    <div class="scrub-cursor" id="scrub-cursor"></div>
-                </div>
+            <div class="scrub-row">
+                <span id="time-start" class="scrub-time">--:--</span>
+                <input type="range" id="scrub-slider" min="0" max="0" value="0" step="1">
+                <span id="time-end" class="scrub-time">--:--</span>
+            </div>
+            <div class="filmstrip-container">
+                <div id="filmstrip" class="filmstrip"></div>
+                <div id="film-cursor" class="film-cursor"></div>
             </div>
             <div class="frame-container">
                 <img id="frame-image" alt="Captured frame">

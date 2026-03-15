@@ -366,17 +366,13 @@ video {
     white-space: nowrap;
 }
 
-/* --- Scrub area (slider + filmstrip) --- */
+/* --- Scrub row + filmstrip --- */
 
-.scrub-area {
-    margin-bottom: 0.3rem;
-}
-
-.scrub-slider-row {
+.scrub-row {
     display: flex;
     align-items: center;
     gap: 0.3rem;
-    padding: 0.1rem 0;
+    padding: 0.15rem 0;
 }
 
 .scrub-time {
@@ -384,73 +380,56 @@ video {
     font-family: "SF Mono", "Menlo", monospace;
     color: var(--text-dim);
     white-space: nowrap;
-    min-width: 2.5em;
 }
 
-.scrub-track {
+.scrub-row input[type="range"] {
     flex: 1;
-    position: relative;
     height: 4px;
+    -webkit-appearance: none;
     background: rgba(255,255,255,0.12);
     border-radius: 2px;
-    cursor: pointer;
-    /* Expand touch area without changing visual size */
-    padding: 12px 0;
-    margin: -12px 0;
-    background-clip: content-box;
+    outline: none;
 }
 
-.scrub-fill {
-    position: absolute;
-    left: 0;
-    top: 12px;
-    height: 4px;
-    background: var(--accent);
-    border-radius: 2px;
-    pointer-events: none;
-}
-
-.scrub-handle {
-    position: absolute;
-    top: 14px;
+.scrub-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
     width: 16px;
     height: 16px;
     border-radius: 50%;
     background: var(--accent);
-    transform: translate(-50%, -50%);
-    left: 0%;
-    pointer-events: none;
+    cursor: pointer;
     box-shadow: 0 1px 4px rgba(0,0,0,0.4);
-    z-index: 2;
 }
 
-.scrub-filmstrip {
+.filmstrip-container {
     position: relative;
-    display: flex;
-    gap: 1px;
+    margin: 0.15rem 0 0.3rem;
     height: 44px;
     overflow: hidden;
     border-radius: 4px;
-    margin-top: 0.2rem;
-    cursor: pointer;
 }
 
-.scrub-filmstrip .film-frame {
+.filmstrip {
+    display: flex;
+    gap: 1px;
+    height: 100%;
+}
+
+.filmstrip .film-frame {
     flex: 1;
     min-width: 0;
     height: 100%;
     overflow: hidden;
 }
 
-.scrub-filmstrip .film-frame img {
+.filmstrip .film-frame img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    pointer-events: none;
     display: block;
 }
 
-.scrub-cursor {
+.film-cursor {
     position: absolute;
     top: 0;
     bottom: 0;
@@ -459,27 +438,28 @@ video {
     left: 0%;
     z-index: 5;
     pointer-events: none;
-    box-shadow: 0 0 4px rgba(79,195,247,0.6);
+    box-shadow: 0 0 6px rgba(79,195,247,0.6);
+    transition: left 0.1s ease-out;
 }
 
-.scrub-cursor::before,
-.scrub-cursor::after {
+.film-cursor::before,
+.film-cursor::after {
     content: "";
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
 }
 
-.scrub-cursor::before {
+.film-cursor::before {
     top: 0;
-    border-top: 4px solid var(--accent);
+    border-top: 5px solid var(--accent);
 }
 
-.scrub-cursor::after {
+.film-cursor::after {
     bottom: 0;
-    border-bottom: 4px solid var(--accent);
+    border-bottom: 5px solid var(--accent);
 }
 
 /* --- Frame viewer --- */

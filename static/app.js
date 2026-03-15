@@ -44,7 +44,7 @@ function init() {
     btnNext.addEventListener("click", () => stepFrame(1));
     btnPlay.addEventListener("click", togglePlay);
     fpsSelect.addEventListener("change", onFpsChange);
-    // Filmstrip drag is initialized when frames load
+    initScrub();
 
     document.addEventListener("keydown", (e) => {
         if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
@@ -203,8 +203,7 @@ async function loadDay(dateStr) {
             frameInfo.textContent = "";
             document.getElementById("time-start").textContent = "--:--";
             document.getElementById("time-end").textContent = "--:--";
-            document.getElementById("scrub-filmstrip").innerHTML =
-                '<div id="scrub-cursor" class="scrub-cursor"></div>';
+            document.getElementById("filmstrip").innerHTML = "";
             return;
         }
 
@@ -215,7 +214,9 @@ async function loadDay(dateStr) {
         document.getElementById("time-start").textContent = fmtTime(tStart);
         document.getElementById("time-end").textContent = fmtTime(tEnd);
 
-        buildFilmstrip();
+        // Set slider range and build filmstrip
+        document.getElementById("scrub-slider").max = currentFrames.length - 1;
+        rebuildFilmstrip(currentFrames.length - 1);
         showFrame(currentFrames.length - 1);
     } catch (e) {
         console.error("Failed to load frames:", e);
@@ -227,146 +228,62 @@ function fmtTime(d) {
     return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
 }
 
-// --- Scrub system ---
+// --- Scrub system (KISS) ---
 
-let scrubInited = false;
-const FILM_WINDOW_SEC = 3 * 3600; // 3h window for filmstrip
-let filmWindowStart = 0;          // epoch of filmstrip left edge
-let filmWindowEnd = 0;            // epoch of filmstrip right edge
+const FILM_WINDOW_SEC = 3 * 3600;
+let filmWindowCenter = 0; // epoch of filmstrip center
 
-function buildFilmstrip() {
-    lastFilmCenter = currentIndex;
-    rebuildFilmstrip(currentIndex);
-    updateSliderPosition(currentIndex);
-    if (!scrubInited) {
-        initScrubDrag();
-        scrubInited = true;
-    }
+function initScrub() {
+    const slider = document.getElementById("scrub-slider");
+    slider.addEventListener("input", () => {
+        showFrame(parseInt(slider.value));
+    });
+    // Rebuild filmstrip when slider is released at a new position
+    slider.addEventListener("change", () => {
+        rebuildFilmstrip(currentIndex);
+    });
 }
 
-let lastFilmCenter = 0;
-
 function rebuildFilmstrip(centerIdx) {
-    const strip = document.getElementById("scrub-filmstrip");
-    const cursor = document.getElementById("scrub-cursor");
+    const strip = document.getElementById("filmstrip");
     strip.innerHTML = "";
-    strip.appendChild(cursor);
-
     if (currentFrames.length === 0) return;
 
     const centerTime = currentFrames[centerIdx].captured_at;
-    filmWindowStart = centerTime - FILM_WINDOW_SEC / 2;
-    filmWindowEnd = centerTime + FILM_WINDOW_SEC / 2;
-    lastFilmCenter = centerIdx;
+    filmWindowCenter = centerTime;
+    const wStart = centerTime - FILM_WINDOW_SEC / 2;
+    const wEnd = centerTime + FILM_WINDOW_SEC / 2;
 
-    // Collect frames in window using binary-ish search (frames are sorted)
-    let iStart = 0;
-    let iEnd = currentFrames.length - 1;
-    while (iStart < currentFrames.length && currentFrames[iStart].captured_at < filmWindowStart) iStart++;
-    while (iEnd >= 0 && currentFrames[iEnd].captured_at > filmWindowEnd) iEnd--;
+    // Find frames in window
+    let iStart = 0, iEnd = currentFrames.length - 1;
+    while (iStart < currentFrames.length && currentFrames[iStart].captured_at < wStart) iStart++;
+    while (iEnd >= 0 && currentFrames[iEnd].captured_at > wEnd) iEnd--;
     if (iStart > iEnd) return;
 
-    const windowLen = iEnd - iStart + 1;
-    const maxThumbs = 30;
-    const step = Math.max(1, Math.floor(windowLen / maxThumbs));
-
+    // Sample ~30 thumbnails from the window
+    const count = iEnd - iStart + 1;
+    const step = Math.max(1, Math.floor(count / 30));
     for (let i = iStart; i <= iEnd; i += step) {
         const frame = currentFrames[i];
         const div = document.createElement("div");
         div.className = "film-frame";
         const img = document.createElement("img");
         img.src = frame.thumb_path ? `/thumbs/${frame.thumb_path}` : `/images/${frame.file_path}`;
-        img.loading = "lazy";
         img.draggable = false;
         div.appendChild(img);
         strip.appendChild(div);
     }
 
-    updateCursorPosition(centerIdx);
+    updateFilmCursor(centerIdx);
 }
 
-function updateCursorPosition(idx) {
-    if (currentFrames.length === 0 || filmWindowEnd <= filmWindowStart) return;
+function updateFilmCursor(idx) {
+    if (currentFrames.length === 0) return;
     const t = currentFrames[idx].captured_at;
-    const pct = ((t - filmWindowStart) / (filmWindowEnd - filmWindowStart)) * 100;
-    document.getElementById("scrub-cursor").style.left =
+    const wStart = filmWindowCenter - FILM_WINDOW_SEC / 2;
+    const pct = ((t - wStart) / FILM_WINDOW_SEC) * 100;
+    document.getElementById("film-cursor").style.left =
         Math.max(0, Math.min(100, pct)) + "%";
-}
-
-function updateSliderPosition(idx) {
-    if (currentFrames.length <= 1) return;
-    const pct = (idx / (currentFrames.length - 1)) * 100;
-    document.getElementById("scrub-fill").style.width = pct + "%";
-    document.getElementById("scrub-handle").style.left = pct + "%";
-}
-
-function findNearestIdx(targetTime) {
-    // Binary search for nearest frame
-    let lo = 0, hi = currentFrames.length - 1;
-    while (lo < hi) {
-        const mid = (lo + hi) >> 1;
-        if (currentFrames[mid].captured_at < targetTime) lo = mid + 1;
-        else hi = mid;
-    }
-    // Check lo and lo-1 for closest
-    if (lo > 0 && Math.abs(currentFrames[lo - 1].captured_at - targetTime)
-        < Math.abs(currentFrames[lo].captured_at - targetTime)) {
-        return lo - 1;
-    }
-    return lo;
-}
-
-function initScrubDrag() {
-    const track = document.getElementById("scrub-track");
-    const strip = document.getElementById("scrub-filmstrip");
-    let dragging = false;
-    let dragSource = null;
-
-    function scrubToX(clientX, source) {
-        if (currentFrames.length === 0) return;
-        const el = source === "strip" ? strip : track;
-        const rect = el.getBoundingClientRect();
-        const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-
-        let idx;
-        if (source === "strip" && filmWindowEnd > filmWindowStart) {
-            const targetTime = filmWindowStart + pct * (filmWindowEnd - filmWindowStart);
-            idx = findNearestIdx(targetTime);
-        } else {
-            idx = Math.round(pct * (currentFrames.length - 1));
-        }
-
-        showFrame(idx);
-    }
-
-    [track, strip].forEach(el => {
-        const src = el === strip ? "strip" : "track";
-        el.addEventListener("mousedown", (e) => {
-            e.preventDefault();
-            dragging = true;
-            dragSource = src;
-            scrubToX(e.clientX, src);
-        });
-        el.addEventListener("touchstart", (e) => {
-            dragging = true;
-            dragSource = src;
-            scrubToX(e.touches[0].clientX, src);
-        }, { passive: true });
-    });
-
-    document.addEventListener("mousemove", (e) => {
-        if (dragging) scrubToX(e.clientX, dragSource);
-    });
-    document.addEventListener("touchmove", (e) => {
-        if (dragging) { e.preventDefault(); scrubToX(e.touches[0].clientX, dragSource); }
-    }, { passive: false });
-
-    document.addEventListener("mouseup", () => {
-        if (dragging) { dragging = false; rebuildFilmstrip(currentIndex); }
-    });
-    document.addEventListener("touchend", () => {
-        if (dragging) { dragging = false; rebuildFilmstrip(currentIndex); }
-    });
 }
 
 function showFrame(idx) {
@@ -374,8 +291,11 @@ function showFrame(idx) {
     currentIndex = idx;
     const frame = currentFrames[idx];
     updateTimeDisplay(idx);
-    updateSliderPosition(idx);
-    updateCursorPosition(idx);
+
+    // Sync slider
+    document.getElementById("scrub-slider").value = idx;
+    // Sync filmstrip cursor
+    updateFilmCursor(idx);
 
     frameImage.src = `/images/${frame.file_path}`;
     frameImage.classList.add("visible");
