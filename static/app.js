@@ -301,9 +301,9 @@ function rebuildFilmstrip(centerIdx) {
     while (iEnd >= 0 && currentFrames[iEnd].captured_at > wEnd) iEnd--;
     if (iStart > iEnd) return;
 
-    // Sample ~30 thumbnails from the window
+    // Sample ~12 thumbnails from the window
     const count = iEnd - iStart + 1;
-    const step = Math.max(1, Math.floor(count / 30));
+    const step = Math.max(1, Math.floor(count / 12));
     for (let i = iStart; i <= iEnd; i += step) {
         const frame = currentFrames[i];
         const div = document.createElement("div");
