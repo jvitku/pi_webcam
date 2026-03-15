@@ -376,7 +376,6 @@ function updateFilmCursor(idx) {
 
 function syncSliderToEpoch(epoch) {
     if (!scrubSlider || currentFrames.length === 0) return;
-    // Binary search for nearest sampled index
     let lo = 0, hi = currentFrames.length - 1;
     while (lo < hi) {
         const mid = (lo + hi) >> 1;
@@ -386,9 +385,10 @@ function syncSliderToEpoch(epoch) {
     if (lo > 0 && Math.abs(currentFrames[lo-1].captured_at - epoch)
         < Math.abs(currentFrames[lo].captured_at - epoch)) lo--;
     scrubUpdating = true;
-    scrubSlider.set(lo, false); // false = no animation
+    scrubSlider.set(lo, false);
     scrubUpdating = false;
     currentIndex = lo;
+    updateFilmCursor(lo);
 }
 
 // --- Display functions ---
