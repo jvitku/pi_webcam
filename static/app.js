@@ -250,6 +250,7 @@ let filmIdxEnd = 0;
 let detailFrames = [];
 let detailIdx = -1;
 let detailLoading = false;
+let detailGeneration = 0; // incremented on clear to cancel stale fetches
 const DETAIL_FRAME_COUNT = 200; // frames per prefetch
 
 function initScrub() {
@@ -290,12 +291,11 @@ function initScrub() {
 // --- Detail window loading ---
 
 async function loadDetailWindow(startEpoch, forward, sampleRate, blocking) {
-    if (detailLoading && !blocking) return; // skip non-blocking if busy
+    if (detailLoading && !blocking) return;
     detailLoading = true;
+    const gen = detailGeneration; // capture current generation
     const sample = sampleRate || 1;
-    // Estimate time span needed for DETAIL_FRAME_COUNT frames
-    // At 0.5fps with sample=5: each sampled frame ~10s apart, 200 frames ~2000s
-    const estimatedSpan = DETAIL_FRAME_COUNT * sample * 2; // 2s per raw frame
+    const estimatedSpan = DETAIL_FRAME_COUNT * sample * 2;
     let start, end;
     if (forward) {
         start = startEpoch;
@@ -308,6 +308,8 @@ async function loadDetailWindow(startEpoch, forward, sampleRate, blocking) {
         const url = `/api/frames?start=${start}&end=${end}&limit=${DETAIL_FRAME_COUNT}&sample=${sample}`;
         const res = await fetch(url);
         const data = await res.json();
+        // Discard result if generation changed (frames were cleared)
+        if (gen !== detailGeneration) { detailLoading = false; return; }
         if (forward && detailFrames.length > 0) {
             const lastExisting = detailFrames[detailFrames.length - 1].captured_at;
             const newFrames = data.frames.filter(f => f.captured_at > lastExisting);
@@ -494,13 +496,13 @@ function getPlaySkip() {
 }
 
 function onPlaySpeedChange() {
-    if (!playing || detailFrames.length === 0 || detailIdx < 0) return;
-    // Save current position, clear frames, let playNext reload
+    if (detailFrames.length === 0 || detailIdx < 0) return;
     const epoch = detailFrames[detailIdx].captured_at;
-    // Find nearest sampled index to preserve slider position
     syncSliderToEpoch(epoch);
     detailFrames = [];
     detailIdx = -1;
+    detailGeneration++; // cancel any in-flight prefetch
+    detailLoading = false; // reset so next load can proceed
 }
 
 async function playNext() {
