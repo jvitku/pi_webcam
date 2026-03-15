@@ -674,16 +674,18 @@ async function pollNewFrames() {
         const data = await res.json();
         if (data.total === totalFrameCount) return;
 
-        const wasAtEnd = currentIndex >= currentFrames.length - 1;
+        const wasAtEnd = currentIndex >= currentFrames.length - 2; // within last 2
+        const oldLen = currentFrames.length;
         currentFrames = data.frames;
         totalFrameCount = data.total;
         frameCount.textContent = `${totalFrameCount}`;
 
         // Update slider range
+        const newMax = Math.max(1, currentFrames.length - 1);
         if (scrubSlider) {
-            scrubSlider.updateOptions({
-                range: { min: 0, max: Math.max(1, currentFrames.length - 1) },
-            }, false); // false = don't fire events
+            scrubUpdating = true;
+            scrubSlider.updateOptions({ range: { min: 0, max: newMax } });
+            scrubUpdating = false;
         }
 
         // Update time labels
@@ -695,7 +697,7 @@ async function pollNewFrames() {
         }
 
         // If user was at the latest frame, follow new frames
-        if (wasAtEnd) {
+        if (wasAtEnd || oldLen === 0) {
             showFrame(currentFrames.length - 1);
             rebuildFilmstrip(currentIndex);
         }
