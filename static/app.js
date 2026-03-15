@@ -257,18 +257,31 @@ function initScrub() {
     });
     scrubSlider = el.noUiSlider;
 
-    // While dragging — update frame on every move
-    scrubSlider.on("update", (values) => {
+    // While dragging — show thumbnail (fast)
+    scrubSlider.on("slide", (values) => {
         if (scrubUpdating) return;
         const idx = Math.round(parseFloat(values[0]));
-        if (idx !== currentIndex && idx >= 0 && idx < currentFrames.length) {
-            showFrame(idx);
+        if (idx >= 0 && idx < currentFrames.length) {
+            showFrameThumb(idx);
         }
     });
 
-    // On release — rebuild filmstrip around new position
-    scrubSlider.on("change", () => {
+    // On release — load full image + rebuild filmstrip
+    scrubSlider.on("change", (values) => {
+        const idx = Math.round(parseFloat(values[0]));
+        if (idx >= 0 && idx < currentFrames.length) {
+            showFrame(idx);
+        }
         rebuildFilmstrip(currentIndex);
+    });
+
+    // On click (not drag) — also load full image
+    scrubSlider.on("set", (values) => {
+        if (scrubUpdating) return;
+        const idx = Math.round(parseFloat(values[0]));
+        if (idx >= 0 && idx < currentFrames.length) {
+            showFrame(idx);
+        }
     });
 }
 
@@ -314,19 +327,36 @@ function updateFilmCursor(idx) {
         Math.max(0, Math.min(100, pct)) + "%";
 }
 
+function showFrameThumb(idx) {
+    if (idx < 0 || idx >= currentFrames.length) return;
+    currentIndex = idx;
+    const frame = currentFrames[idx];
+    updateTimeDisplay(idx);
+    updateFilmCursor(idx);
+
+    // Load thumbnail (fast) instead of full image
+    const src = frame.thumb_path ? `/thumbs/${frame.thumb_path}` : `/images/${frame.file_path}`;
+    frameImage.src = src;
+    frameImage.classList.add("visible");
+    noFrames.classList.add("hidden");
+
+    const dt = new Date(frame.captured_at * 1000);
+    const sizeKb = frame.file_size ? `${Math.round(frame.file_size / 1024)}KB` : "";
+    frameInfo.textContent = `${dt.toLocaleTimeString()} | ${sizeKb} | ${idx + 1}/${currentFrames.length}`;
+}
+
 function showFrame(idx) {
     if (idx < 0 || idx >= currentFrames.length) return;
     currentIndex = idx;
     const frame = currentFrames[idx];
     updateTimeDisplay(idx);
 
-    // Sync slider without triggering update callback
+    // Sync slider without triggering callbacks
     if (scrubSlider) {
         scrubUpdating = true;
         scrubSlider.set(idx);
         scrubUpdating = false;
     }
-    // Sync filmstrip cursor
     updateFilmCursor(idx);
 
     frameImage.src = `/images/${frame.file_path}`;

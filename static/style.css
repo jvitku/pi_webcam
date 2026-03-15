@@ -387,42 +387,49 @@ video {
 }
 
 /* noUiSlider overrides for dark theme */
-.scrub-slider .noUi-target {
-    background: rgba(255,255,255,0.12);
-    border: none;
-    box-shadow: none;
-    height: 4px;
+#scrub-slider.noUi-target {
+    background: rgba(255,255,255,0.12) !important;
+    border: none !important;
+    box-shadow: none !important;
+    height: 6px !important;
+    border-radius: 3px !important;
 }
 
-.scrub-slider .noUi-connect {
-    background: var(--accent);
+#scrub-slider .noUi-connect {
+    background: var(--accent) !important;
 }
 
-.scrub-slider .noUi-handle {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: var(--accent);
-    border: none;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
-    cursor: pointer;
-    top: -7px;
-    right: -8px;
+#scrub-slider .noUi-handle {
+    width: 18px !important;
+    height: 18px !important;
+    border-radius: 50% !important;
+    background: var(--accent) !important;
+    border: 2px solid #fff !important;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.5) !important;
+    cursor: pointer !important;
+    top: -7px !important;
+    right: -9px !important;
 }
 
-.scrub-slider .noUi-handle::before,
-.scrub-slider .noUi-handle::after {
-    display: none;
+#scrub-slider .noUi-handle::before,
+#scrub-slider .noUi-handle::after {
+    display: none !important;
 }
 
-.scrub-slider .noUi-tooltip {
-    background: rgba(0,0,0,0.8);
-    color: #fff;
-    border: none;
-    border-radius: 4px;
-    font-size: 0.7rem;
-    font-family: "SF Mono", "Menlo", monospace;
-    padding: 0.15rem 0.4rem;
+#scrub-slider .noUi-tooltip {
+    background: rgba(0,0,0,0.85) !important;
+    color: #fff !important;
+    border: none !important;
+    border-radius: 6px !important;
+    font-size: 0.75rem !important;
+    font-family: "SF Mono", "Menlo", monospace !important;
+    padding: 0.2rem 0.5rem !important;
+    bottom: 28px !important;
+}
+
+#scrub-slider .noUi-touch-area {
+    height: 100% !important;
+    width: 100% !important;
 }
 
 .filmstrip-container {
