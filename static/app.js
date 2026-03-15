@@ -262,10 +262,12 @@ function initScrub() {
     scrubSlider = el.noUiSlider;
 
     let userDragging = false;
+    let wasPlaying = false;
 
     scrubSlider.on("start", () => {
         userDragging = true;
-        if (playing) togglePlay();
+        wasPlaying = playing;
+        if (playing) { playing = false; btnPlay.textContent = "\u25B6"; }
     });
 
     scrubSlider.on("slide", (values) => {
@@ -283,6 +285,10 @@ function initScrub() {
         if (idx >= 0 && idx < currentFrames.length) {
             showFrameFromSampled(idx);
             rebuildFilmstrip(idx);
+        }
+        if (wasPlaying) {
+            wasPlaying = false;
+            togglePlay();
         }
     });
 }
