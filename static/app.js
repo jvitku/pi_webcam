@@ -25,7 +25,6 @@ const statFrames = document.getElementById("stat-frames");
 
 let currentFrames = [];
 let currentIndex = -1;
-let debounceTimer = null;
 
 // --- Initialization ---
 
@@ -327,12 +326,6 @@ async function loadDetailWindow(startEpoch, forward, sampleRate, blocking) {
         console.error("Failed to load detail window:", e);
     }
     detailLoading = false;
-}
-
-function detailHasFrame(epoch) {
-    if (detailFrames.length === 0) return false;
-    return epoch >= detailFrames[0].captured_at &&
-           epoch <= detailFrames[detailFrames.length - 1].captured_at;
 }
 
 // --- Filmstrip ---
@@ -746,7 +739,6 @@ async function loadCameraSettings() {
         const data = await res.json();
         if (data.error) return;
 
-        // AF mode
         // Metering
         const metBtns = document.querySelectorAll("#metering-mode button");
         metBtns.forEach(b => b.classList.toggle("active", b.dataset.val === data.metering));
