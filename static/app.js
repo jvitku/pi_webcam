@@ -43,6 +43,7 @@ function init() {
     btnNext.addEventListener("click", () => stepFrame(1));
     btnPlay.addEventListener("click", togglePlay);
     fpsSelect.addEventListener("change", onFpsChange);
+    document.getElementById("play-speed").addEventListener("change", onPlaySpeedChange);
     initScrub();
 
     document.addEventListener("keydown", (e) => {
@@ -288,8 +289,8 @@ function initScrub() {
 
 // --- Detail window loading ---
 
-async function loadDetailWindow(startEpoch, forward, sampleRate) {
-    if (detailLoading) return;
+async function loadDetailWindow(startEpoch, forward, sampleRate, blocking) {
+    if (detailLoading && !blocking) return; // skip non-blocking if busy
     detailLoading = true;
     const sample = sampleRate || 1;
     // Estimate time span needed for DETAIL_FRAME_COUNT frames
@@ -380,18 +381,19 @@ function updateFilmCursor(idx) {
 
 function syncSliderToEpoch(epoch) {
     if (!scrubSlider || currentFrames.length === 0) return;
-    // Find nearest sampled index for this epoch
-    let best = 0;
-    let bestDist = Infinity;
-    for (let i = 0; i < currentFrames.length; i++) {
-        const d = Math.abs(currentFrames[i].captured_at - epoch);
-        if (d < bestDist) { bestDist = d; best = i; }
+    // Binary search for nearest sampled index
+    let lo = 0, hi = currentFrames.length - 1;
+    while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (currentFrames[mid].captured_at < epoch) lo = mid + 1;
+        else hi = mid;
     }
+    if (lo > 0 && Math.abs(currentFrames[lo-1].captured_at - epoch)
+        < Math.abs(currentFrames[lo].captured_at - epoch)) lo--;
     scrubUpdating = true;
-    scrubSlider.set(best);
+    scrubSlider.set(lo, false); // false = no animation
     scrubUpdating = false;
-    currentIndex = best;
-    updateFilmCursor(best);
+    currentIndex = lo;
 }
 
 // --- Display functions ---
@@ -445,7 +447,7 @@ function showFrame(idx) {
     const frame = currentFrames[idx];
     displayFrame(frame, "");
     scrubUpdating = true;
-    if (scrubSlider) scrubSlider.set(idx);
+    if (scrubSlider) scrubSlider.set(idx, false);
     scrubUpdating = false;
     updateFilmCursor(idx);
 }
@@ -494,6 +496,18 @@ function getPlaySkip() {
     return parseInt(document.getElementById("play-speed").value) || 5;
 }
 
+function onPlaySpeedChange() {
+    if (!playing) return;
+    // Re-sample: keep current position, reload detail at new rate
+    const epoch = detailIdx >= 0 && detailIdx < detailFrames.length
+        ? detailFrames[detailIdx].captured_at
+        : currentFrames[currentIndex]?.captured_at;
+    if (!epoch) return;
+    detailFrames = [];
+    detailIdx = -1;
+    // playNext will reload with new skip rate
+}
+
 async function playNext() {
     if (!playing) return;
 
@@ -502,18 +516,18 @@ async function playNext() {
     // Ensure we have detail frames (sampled at play speed)
     if (detailFrames.length === 0 || detailIdx < 0) {
         if (currentIndex >= 0 && currentIndex < currentFrames.length) {
-            await loadDetailWindow(currentFrames[currentIndex].captured_at, true, skip);
+            await loadDetailWindow(currentFrames[currentIndex].captured_at, true, skip, true);
         }
-        if (detailFrames.length === 0) { togglePlay(); return; }
+        if (!playing || detailFrames.length === 0) { togglePlay(); return; }
     }
 
-    // Play steps by 1 through already-sampled detail frames
     let nextIdx = detailIdx + 1;
 
-    // If past end, load more frames forward
+    // If past end, must wait for more frames
     if (nextIdx >= detailFrames.length) {
         const lastEpoch = detailFrames[detailFrames.length - 1].captured_at;
-        await loadDetailWindow(lastEpoch, true, skip);
+        await loadDetailWindow(lastEpoch, true, skip, true);
+        if (!playing) return;
         nextIdx = detailIdx + 1;
         if (nextIdx >= detailFrames.length) { togglePlay(); return; }
     }
@@ -535,10 +549,10 @@ async function playNext() {
         frameInfo.textContent = `${dt.toLocaleTimeString()} | ${sizeKb} | ${nextIdx + 1}/${detailFrames.length}`;
         syncSliderToEpoch(frame.captured_at);
 
-        // Prefetch forward when past 50% of window
+        // Prefetch forward when past 50% (non-blocking, appends)
         if (nextIdx > detailFrames.length * 0.5) {
             const lastEpoch = detailFrames[detailFrames.length - 1].captured_at;
-            loadDetailWindow(lastEpoch, true, skip);
+            loadDetailWindow(lastEpoch, true, skip, false);
         }
 
         setTimeout(playNext, 50);
