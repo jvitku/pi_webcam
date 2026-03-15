@@ -44,7 +44,7 @@ function init() {
     btnNext.addEventListener("click", () => stepFrame(1));
     btnPlay.addEventListener("click", togglePlay);
     fpsSelect.addEventListener("change", onFpsChange);
-    initScrubber();
+    // Filmstrip drag is initialized when frames load
 
     document.addEventListener("keydown", (e) => {
         if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
@@ -193,7 +193,7 @@ async function loadDay(dateStr) {
             // no frames
             document.getElementById("time-start").textContent = "--:--";
             document.getElementById("time-end").textContent = "--:--";
-            document.getElementById("thumb-strip").innerHTML = "";
+            document.getElementById("filmstrip").innerHTML = '<div id="filmstrip-cursor" class="filmstrip-cursor"></div>';
             return;
         }
 
@@ -209,7 +209,7 @@ async function loadDay(dateStr) {
         document.getElementById("time-start").textContent = fmtTime(tStart);
         document.getElementById("time-end").textContent = fmtTime(tEnd);
 
-        buildThumbStrip();
+        buildFilmstrip();
         showFrame(currentFrames.length - 1);
     } catch (e) {
         console.error("Failed to load frames:", e);
@@ -232,165 +232,122 @@ async function loadAllFrames(start, end, total) {
     frameCount.textContent = `${currentFrames.length}`;
 }
 
-function buildThumbStrip() {
-    const strip = document.getElementById("thumb-strip");
-    strip.innerHTML = "";
+// --- Filmstrip ---
 
-    // Show ~40 evenly-spaced thumbnails
-    const maxThumbs = 40;
-    const step = Math.max(1, Math.floor(currentFrames.length / maxThumbs));
+let filmFrameWidth = 64;
+let filmStripEl = null;
+let filmDragging = false;
+
+function buildFilmstrip() {
+    filmStripEl = document.getElementById("filmstrip");
+    // Remove old frames but keep cursor
+    const cursor = document.getElementById("filmstrip-cursor");
+    filmStripEl.innerHTML = "";
+    filmStripEl.appendChild(cursor);
+
+    if (currentFrames.length === 0) return;
+
+    // One thumbnail per frame (up to ~200, then sample)
+    const maxFrames = 200;
+    const step = Math.max(1, Math.floor(currentFrames.length / maxFrames));
 
     for (let i = 0; i < currentFrames.length; i += step) {
         const frame = currentFrames[i];
         const div = document.createElement("div");
-        div.className = "thumb-item";
+        div.className = "film-frame";
+        div.style.width = filmFrameWidth + "px";
         div.dataset.idx = i;
 
         const img = document.createElement("img");
-        const src = frame.thumb_path
+        img.src = frame.thumb_path
             ? `/thumbs/${frame.thumb_path}`
             : `/images/${frame.file_path}`;
-        img.src = src;
         img.loading = "lazy";
         img.draggable = false;
         div.appendChild(img);
-
-        // Time label on every ~5th thumbnail
-        const thumbIdx = Math.round(i / step);
-        if (thumbIdx % 5 === 0) {
-            const t = document.createElement("span");
-            t.className = "thumb-time";
-            t.textContent = fmtTime(new Date(frame.captured_at * 1000));
-            div.appendChild(t);
-        }
-
-        strip.appendChild(div);
+        filmStripEl.appendChild(div);
     }
 
-    // Desktop drag scrolling
-    initDragScroll(strip);
+    // Set initial scroll position
+    scrollFilmToIndex(currentIndex);
+    initFilmDrag();
 }
 
-function initDragScroll(el) {
-    let isDown = false;
+function scrollFilmToIndex(idx) {
+    if (!filmStripEl || currentFrames.length === 0) return;
+    const totalWidth = filmStripEl.scrollWidth - filmStripEl.clientWidth;
+    const pct = idx / (currentFrames.length - 1);
+    filmStripEl.scrollLeft = pct * totalWidth;
+}
+
+function indexFromScroll() {
+    if (!filmStripEl || currentFrames.length <= 1) return 0;
+    const totalWidth = filmStripEl.scrollWidth - filmStripEl.clientWidth;
+    if (totalWidth <= 0) return 0;
+    const pct = filmStripEl.scrollLeft / totalWidth;
+    return Math.round(pct * (currentFrames.length - 1));
+}
+
+function initFilmDrag() {
+    if (!filmStripEl) return;
     let startX = 0;
-    let startIdx = 0;
-    let didDrag = false;
+    let startScroll = 0;
 
     function onStart(x) {
-        isDown = true;
-        didDrag = false;
-        el.classList.add("dragging");
+        filmDragging = true;
+        filmStripEl.classList.add("dragging");
         startX = x;
-        startIdx = currentIndex;
+        startScroll = filmStripEl.scrollLeft;
     }
 
     function onMove(x) {
-        if (!isDown) return;
+        if (!filmDragging) return;
         const dx = x - startX;
-        if (Math.abs(dx) > 5) didDrag = true;
-        // Each 20px of drag = 1 frame
-        const frameDelta = -Math.round(dx / 20);
-        const newIdx = Math.max(0, Math.min(
-            currentFrames.length - 1, startIdx + frameDelta
-        ));
-        if (newIdx !== currentIndex) {
-            showFrame(newIdx);
+        filmStripEl.scrollLeft = startScroll - dx;
+        const idx = indexFromScroll();
+        if (idx !== currentIndex) {
+            currentIndex = idx;
+            updateTimeDisplay(idx);
+            // Show thumbnail quickly during drag
+            const frame = currentFrames[idx];
+            if (frame) {
+                frameImage.src = frame.thumb_path
+                    ? `/thumbs/${frame.thumb_path}`
+                    : `/images/${frame.file_path}`;
+                frameImage.classList.add("visible");
+                noFrames.classList.add("hidden");
+                const dt = new Date(frame.captured_at * 1000);
+                const sizeKb = frame.file_size ? `${Math.round(frame.file_size / 1024)}KB` : "";
+                frameInfo.textContent = `${dt.toLocaleString()} | ${sizeKb} | ${idx + 1}/${currentFrames.length}`;
+            }
         }
     }
 
     function onEnd() {
-        isDown = false;
-        el.classList.remove("dragging");
+        if (!filmDragging) return;
+        filmDragging = false;
+        filmStripEl.classList.remove("dragging");
+        // Load full resolution
+        showFrame(currentIndex);
     }
 
-    // Mouse events
-    el.addEventListener("mousedown", (e) => {
+    filmStripEl.addEventListener("mousedown", (e) => {
         e.preventDefault();
         onStart(e.pageX);
     });
-    document.addEventListener("mousemove", (e) => onMove(e.pageX));
+    document.addEventListener("mousemove", (e) => { if (filmDragging) onMove(e.pageX); });
     document.addEventListener("mouseup", onEnd);
 
-    // Touch events
-    el.addEventListener("touchstart", (e) => {
+    filmStripEl.addEventListener("touchstart", (e) => {
         onStart(e.touches[0].pageX);
     }, { passive: true });
     document.addEventListener("touchmove", (e) => {
-        if (isDown) onMove(e.touches[0].pageX);
-    }, { passive: true });
+        if (filmDragging) {
+            e.preventDefault();
+            onMove(e.touches[0].pageX);
+        }
+    }, { passive: false });
     document.addEventListener("touchend", onEnd);
-
-    // Click on thumb (only if not dragging)
-    el.addEventListener("click", (e) => {
-        if (didDrag) return;
-        const item = e.target.closest(".thumb-item");
-        if (item) showFrame(parseInt(item.dataset.idx));
-    });
-}
-
-function highlightThumb(idx) {
-    const strip = document.getElementById("thumb-strip");
-    const items = strip.querySelectorAll(".thumb-item");
-    let best = null;
-    let bestDist = Infinity;
-    items.forEach(item => {
-        const itemIdx = parseInt(item.dataset.idx);
-        const dist = Math.abs(itemIdx - idx);
-        item.classList.toggle("active", false);
-        if (dist < bestDist) { bestDist = dist; best = item; }
-    });
-    if (best) {
-        best.classList.add("active");
-        best.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-    }
-}
-
-function initScrubber() {
-    const track = document.getElementById("scrubber-track");
-    let dragging = false;
-
-    function scrubTo(e) {
-        if (currentFrames.length === 0) return;
-        const rect = track.getBoundingClientRect();
-        const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-        const idx = Math.round(pct * (currentFrames.length - 1));
-        showFrame(idx);
-    }
-
-    track.addEventListener("mousedown", (e) => {
-        dragging = true;
-        track.classList.add("active");
-        scrubTo(e);
-    });
-    track.addEventListener("touchstart", (e) => {
-        dragging = true;
-        track.classList.add("active");
-        scrubTo(e.touches[0]);
-    }, { passive: true });
-
-    document.addEventListener("mousemove", (e) => {
-        if (dragging) scrubTo(e);
-    });
-    document.addEventListener("touchmove", (e) => {
-        if (dragging) scrubTo(e.touches[0]);
-    }, { passive: true });
-
-    document.addEventListener("mouseup", () => {
-        dragging = false;
-        track.classList.remove("active");
-    });
-    document.addEventListener("touchend", () => {
-        dragging = false;
-        track.classList.remove("active");
-    });
-}
-
-function updateScrubber(idx) {
-    if (currentFrames.length <= 1) return;
-    const pct = (idx / (currentFrames.length - 1)) * 100;
-    document.getElementById("scrubber-fill").style.width = pct + "%";
-    document.getElementById("scrubber-thumb").style.left = pct + "%";
 }
 
 function showFrame(idx) {
@@ -398,8 +355,7 @@ function showFrame(idx) {
     currentIndex = idx;
     const frame = currentFrames[idx];
     updateTimeDisplay(idx);
-    updateScrubber(idx);
-    highlightThumb(idx);
+    if (!filmDragging) scrollFilmToIndex(idx);
 
     frameImage.src = `/images/${frame.file_path}`;
     frameImage.classList.add("visible");

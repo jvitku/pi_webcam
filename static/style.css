@@ -349,63 +349,13 @@ video {
 
 .tl-btn:active { color: var(--text); }
 
-/* --- Scrubber (YouTube-style) --- */
-
-.scrubber {
-    padding: 0.4rem 0 0.1rem;
-}
-
-.scrubber-track {
-    position: relative;
-    height: 4px;
-    background: rgba(255,255,255,0.15);
-    border-radius: 2px;
-    cursor: pointer;
-    transition: height 0.15s;
-}
-
-.scrubber-track:hover, .scrubber-track.active {
-    height: 6px;
-}
-
-.scrubber-fill {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    background: var(--accent);
-    border-radius: 2px;
-    pointer-events: none;
-    width: 0%;
-}
-
-.scrubber-thumb {
-    position: absolute;
-    top: 50%;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: var(--accent);
-    transform: translate(-50%, -50%);
-    left: 0%;
-    opacity: 0;
-    transition: opacity 0.15s;
-    pointer-events: none;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
-}
-
-.scrubber-track:hover .scrubber-thumb,
-.scrubber-track.active .scrubber-thumb {
-    opacity: 1;
-}
-
-.scrubber-labels {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.6rem;
+.tl-time-display {
     font-family: "SF Mono", "Menlo", monospace;
-    color: var(--text-dim);
-    padding-top: 0.15rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #fff;
+    min-width: 4.5em;
+    text-align: center;
 }
 
 .tl-count {
@@ -415,63 +365,83 @@ video {
     white-space: nowrap;
 }
 
-/* --- Thumbnail strip --- */
+/* --- Filmstrip --- */
 
-.thumb-strip {
+.filmstrip-wrap {
+    padding: 0.2rem 0;
+}
+
+.filmstrip {
+    position: relative;
     display: flex;
-    gap: 2px;
-    overflow-x: auto;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-    padding: 0.15rem 0;
+    gap: 1px;
+    height: 48px;
+    overflow: hidden;
+    border-radius: 6px;
     cursor: grab;
     user-select: none;
     -webkit-user-select: none;
+    touch-action: none;
 }
 
-.thumb-strip.dragging { cursor: grabbing; }
+.filmstrip.dragging { cursor: grabbing; }
 
-.thumb-strip::-webkit-scrollbar { display: none; }
-
-.thumb-strip .thumb-item {
+.filmstrip .film-frame {
     flex-shrink: 0;
-    width: 52px;
-    height: 30px;
-    border-radius: 3px;
+    height: 100%;
     overflow: hidden;
-    cursor: pointer;
-    opacity: 0.4;
-    transition: opacity 0.15s, outline-color 0.15s;
-    outline: 2px solid transparent;
-    position: relative;
 }
 
-.thumb-strip .thumb-item.active {
-    opacity: 1;
-    outline-color: var(--accent);
-}
-
-.thumb-strip .thumb-item:hover { opacity: 0.75; }
-
-.thumb-strip .thumb-item img {
+.filmstrip .film-frame img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     pointer-events: none;
+    display: block;
 }
 
-.thumb-strip .thumb-time {
+.filmstrip-cursor {
     position: absolute;
+    top: 0;
     bottom: 0;
-    left: 0;
-    right: 0;
-    font-size: 0.5rem;
+    width: 2px;
+    background: var(--accent);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 5;
+    pointer-events: none;
+    box-shadow: 0 0 6px rgba(79,195,247,0.5);
+}
+
+.filmstrip-cursor::before,
+.filmstrip-cursor::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+}
+
+.filmstrip-cursor::before {
+    top: 0;
+    border-top: 5px solid var(--accent);
+}
+
+.filmstrip-cursor::after {
+    bottom: 0;
+    border-bottom: 5px solid var(--accent);
+}
+
+.filmstrip-times {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.6rem;
     font-family: "SF Mono", "Menlo", monospace;
-    color: #fff;
-    background: rgba(0,0,0,0.6);
-    text-align: center;
-    padding: 0 1px;
-    line-height: 1.3;
+    color: var(--text-dim);
+    padding-top: 0.1rem;
 }
 
 /* --- Frame viewer --- */
@@ -495,30 +465,17 @@ video {
 
 .frame-container img.visible { display: block; }
 
-.frame-overlay {
+.frame-info {
     position: absolute;
     bottom: 0;
     left: 0;
     right: 0;
-    background: linear-gradient(transparent, rgba(0,0,0,0.75));
-    padding: 1.5rem 0.6rem 0.4rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    pointer-events: none;
-}
-
-.frame-time {
-    font-family: "SF Mono", "Menlo", monospace;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #fff;
-}
-
-.frame-meta {
+    background: linear-gradient(transparent, rgba(0,0,0,0.7));
+    padding: 1.2rem 0.6rem 0.35rem;
     font-size: 0.65rem;
     font-family: "SF Mono", "Menlo", monospace;
     color: rgba(255,255,255,0.5);
+    pointer-events: none;
 }
 
 .placeholder {
