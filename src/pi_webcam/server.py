@@ -1,5 +1,6 @@
 """FastAPI web server — API routes and static file serving."""
 
+import asyncio
 import base64
 import json
 import logging
@@ -265,7 +266,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         sample: int = Query(default=1, ge=1, le=1000),
         db: Database = Depends(get_db),
     ) -> FrameList:
-        frames_data, total = db.get_frames(
+        # Run sync DB calls in a thread so they don't block the
+        # async event loop (which would stall camera API, etc.)
+        frames_data, total = await asyncio.to_thread(
+            db.get_frames,
             start=start, end=end, limit=limit, offset=offset,
             sample=sample,
         )
@@ -282,7 +286,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def latest_frame(
         db: Database = Depends(get_db),
     ) -> Frame:
-        data = db.get_latest_frame()
+        data = await asyncio.to_thread(db.get_latest_frame)
         if data is None:
             raise HTTPException(
                 status_code=404, detail="No frames captured yet"
@@ -294,7 +298,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         frame_id: int,
         db: Database = Depends(get_db),
     ) -> Frame:
-        data = db.get_frame_by_id(frame_id)
+        data = await asyncio.to_thread(db.get_frame_by_id, frame_id)
         if data is None:
             raise HTTPException(status_code=404, detail="Frame not found")
         return Frame(**data)
@@ -303,7 +307,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def list_days(
         db: Database = Depends(get_db),
     ) -> list[str]:
-        return db.get_days_with_frames()
+        return await asyncio.to_thread(db.get_days_with_frames)
 
     @app.get("/api/status")
     async def system_status(
@@ -326,10 +330,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         from pi_webcam.retention import get_disk_free_mb, get_disk_used_mb
 
+        total_frames = await asyncio.to_thread(db.get_frame_count)
         return SystemStatus(
             capture=capture,
             capture_fps=s.capture_fps,
-            total_frames=db.get_frame_count(),
+            total_frames=total_frames,
             disk_free_mb=get_disk_free_mb(s.data_dir),
             disk_used_mb=get_disk_used_mb(s.data_dir),
             cpu_temp=cpu_temp,
