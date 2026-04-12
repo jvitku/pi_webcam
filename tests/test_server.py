@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import time
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,7 +12,14 @@ from PIL import Image
 
 from pi_webcam.config import Settings
 from pi_webcam.database import Database
-from pi_webcam.server import create_app, validate_image_path
+from pi_webcam.server import (
+    create_app,
+    flips_to_rotation,
+    load_camera_settings,
+    rotation_to_flips,
+    save_camera_settings,
+    validate_image_path,
+)
 
 
 @pytest.fixture
@@ -257,3 +265,45 @@ class TestAuth:
             "/api/status", headers={"Authorization": f"Basic {creds}"}
         )
         assert response.status_code == 401
+
+
+class TestRotationHelpers:
+    def test_rotation_to_flips_0(self) -> None:
+        assert rotation_to_flips(0) == {
+            "rpiCameraHFlip": False,
+            "rpiCameraVFlip": False,
+        }
+
+    def test_rotation_to_flips_180(self) -> None:
+        assert rotation_to_flips(180) == {
+            "rpiCameraHFlip": True,
+            "rpiCameraVFlip": True,
+        }
+
+    def test_flips_to_rotation_normal(self) -> None:
+        assert flips_to_rotation(False, False) == 0
+
+    def test_flips_to_rotation_180(self) -> None:
+        assert flips_to_rotation(True, True) == 180
+
+    def test_flips_to_rotation_partial(self) -> None:
+        # hflip only or vflip only → treated as 0
+        assert flips_to_rotation(True, False) == 0
+        assert flips_to_rotation(False, True) == 0
+
+
+class TestCameraSettingsPersistence:
+    def test_save_and_load(self, tmp_path: Path) -> None:
+        save_camera_settings(tmp_path, {"rotation": 180})
+        loaded = load_camera_settings(tmp_path)
+        assert loaded["rotation"] == 180
+
+    def test_load_missing_file(self, tmp_path: Path) -> None:
+        assert load_camera_settings(tmp_path) == {}
+
+    def test_merge_on_save(self, tmp_path: Path) -> None:
+        save_camera_settings(tmp_path, {"rotation": 180})
+        save_camera_settings(tmp_path, {"other": "value"})
+        loaded = load_camera_settings(tmp_path)
+        assert loaded["rotation"] == 180
+        assert loaded["other"] == "value"

@@ -217,6 +217,21 @@ vcgencmd get_throttled
 df -h /data
 ```
 
+## Hardening
+
+### Protect SSH from OOM killer
+
+On the Pi Zero 2 W (512 MB RAM), memory pressure from the webcam process can cause the kernel OOM killer to terminate sshd, locking you out remotely. To prevent this:
+
+```bash
+sudo mkdir -p /etc/systemd/system/ssh.service.d
+echo -e '[Service]\nOOMScoreAdjust=-900' | sudo tee /etc/systemd/system/ssh.service.d/oom-protect.conf
+sudo systemctl daemon-reload
+sudo systemctl restart sshd
+```
+
+This tells the kernel to kill sshd last — so the webcam process gets killed before you lose remote access.
+
 ## Remote Access
 
 The web UI works over VPN (e.g. WireGuard, Tailscale) — stream URLs are automatically derived from the browser's hostname, so no configuration change is needed when accessing via VPN IP instead of `picam.local`.

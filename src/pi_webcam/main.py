@@ -8,6 +8,7 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import httpx
 import uvicorn
 from fastapi import FastAPI
 
@@ -16,6 +17,7 @@ from pi_webcam.config import Settings, get_settings
 from pi_webcam.database import Database
 from pi_webcam.models import CaptureStatus
 from pi_webcam.retention import retention_loop
+from pi_webcam.server import load_camera_settings, rotation_to_flips
 
 logging.basicConfig(
     level=logging.INFO,
@@ -62,6 +64,32 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 break
             except TimeoutError:
                 pass
+
+    # Re-apply persisted camera settings (e.g. rotation) to MediaMTX.
+    # MediaMTX loses runtime settings on restart; since pi-webcam always
+    # starts after MediaMTX, this restores them.
+    saved = load_camera_settings(settings.data_dir)
+    if "rotation" in saved:
+        flips = rotation_to_flips(int(str(saved["rotation"])))
+        try:
+            async with httpx.AsyncClient() as client:
+                r_get = await client.get(
+                    f"{settings.mediamtx_api_url}/v3/config/paths/get/cam",
+                    timeout=5,
+                )
+                if r_get.status_code == 200:
+                    current = r_get.json()
+                    current.pop("name", None)
+                    current.update(flips)
+                    await client.post(
+                        f"{settings.mediamtx_api_url}"
+                        "/v3/config/paths/replace/cam",
+                        json=current,
+                        timeout=5,
+                    )
+                    logger.info("Applied saved rotation: %s°", saved["rotation"])
+        except httpx.HTTPError:
+            logger.warning("Could not apply saved camera settings to MediaMTX")
 
     capture_task = asyncio.create_task(capture_worker.start())
     status_task = asyncio.create_task(update_capture_status())

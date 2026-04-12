@@ -1,6 +1,8 @@
 """FastAPI web server — API routes and static file serving."""
 
 import base64
+import json
+import logging
 import secrets
 import time
 from pathlib import Path
@@ -15,6 +17,50 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from pi_webcam.config import Settings
 from pi_webcam.database import Database
 from pi_webcam.models import CaptureStatus, Frame, FrameList, SystemStatus
+
+logger = logging.getLogger(__name__)
+
+# --- Persistent camera settings ---
+
+_CAMERA_SETTINGS_FILE = "camera_settings.json"
+
+
+def _camera_settings_path(data_dir: Path) -> Path:
+    return data_dir / _CAMERA_SETTINGS_FILE
+
+
+def load_camera_settings(data_dir: Path) -> dict[str, object]:
+    """Load persisted camera settings from disk."""
+    path = _camera_settings_path(data_dir)
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text())  # type: ignore[no-any-return]
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def save_camera_settings(data_dir: Path, settings: dict[str, object]) -> None:
+    """Merge and persist camera settings to disk."""
+    current = load_camera_settings(data_dir)
+    current.update(settings)
+    path = _camera_settings_path(data_dir)
+    path.write_text(json.dumps(current))
+
+
+def rotation_to_flips(degrees: int) -> dict[str, bool]:
+    """Map rotation degrees to MediaMTX rpiCameraHFlip/VFlip."""
+    return {
+        "rpiCameraHFlip": degrees == 180,
+        "rpiCameraVFlip": degrees == 180,
+    }
+
+
+def flips_to_rotation(hflip: bool, vflip: bool) -> int:
+    """Map MediaMTX HFlip/VFlip back to rotation degrees."""
+    if hflip and vflip:
+        return 180
+    return 0
 
 # --- System stats helpers ---
 
@@ -342,6 +388,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "saturation": data.get(
                         "rpiCameraSaturation", 1.0
                     ),
+                    "rotation": flips_to_rotation(
+                        data.get("rpiCameraHFlip", False),
+                        data.get("rpiCameraVFlip", False),
+                    ),
                 }
         except httpx.HTTPError as exc:
             raise HTTPException(
@@ -372,6 +422,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         for key, val in body.items():
             if key in key_map:
                 mtx_body[key_map[key]] = val
+
+        # Rotation is mapped to hflip + vflip and persisted to disk
+        if "rotation" in body:
+            degrees = int(body["rotation"])
+            if degrees not in (0, 180):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Rotation must be 0 or 180 "
+                    "(90/270 not supported by camera hardware)",
+                )
+            mtx_body.update(rotation_to_flips(degrees))
+            save_camera_settings(
+                settings.data_dir, {"rotation": degrees},
+            )
 
         if not mtx_body:
             raise HTTPException(

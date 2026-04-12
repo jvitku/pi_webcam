@@ -722,6 +722,8 @@ function initCameraControls() {
 function onSegChange(controlId, value) {
     if (controlId === "metering-mode") {
         sendCamera({ metering: value });
+    } else if (controlId === "rotation-mode") {
+        sendCamera({ rotation: parseInt(value, 10) });
     }
 }
 
@@ -751,6 +753,12 @@ async function loadCameraSettings() {
         // Metering
         const metBtns = document.querySelectorAll("#metering-mode button");
         metBtns.forEach(b => b.classList.toggle("active", b.dataset.val === data.metering));
+
+        // Rotation
+        if (data.rotation != null) {
+            const rotBtns = document.querySelectorAll("#rotation-mode button");
+            rotBtns.forEach(b => b.classList.toggle("active", b.dataset.val === String(data.rotation)));
+        }
 
         // EV
         if (data.ev != null) {
@@ -785,6 +793,7 @@ async function resetCameraDefaults() {
         brightness: 0,
         contrast: 1,
         saturation: 1,
+        rotation: 0,
     });
     await loadCameraSettings();
 }
