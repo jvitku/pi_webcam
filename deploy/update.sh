@@ -12,10 +12,11 @@ INSTALL_DIR="/opt/pi_webcam"
 
 echo "=== Pi Webcam Update ==="
 
-# Pull latest
+# Pull latest (as the real user, not root — root lacks SSH keys)
 cd "$PROJECT_DIR"
-git reset --hard
-git pull --rebase
+REAL_USER="${SUDO_USER:-$(whoami)}"
+sudo -u "$REAL_USER" git reset --hard
+sudo -u "$REAL_USER" git pull --rebase
 
 # Copy source + static + service files
 cp -r src static "$INSTALL_DIR/"
