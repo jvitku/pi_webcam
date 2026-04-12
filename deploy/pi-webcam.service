@@ -12,6 +12,11 @@ Restart=always
 RestartSec=5
 Nice=10
 TimeoutStopSec=10
+# Restart the process once per day to reclaim fragmented Python memory.
+# CPython's allocator cannot return small-object arenas to the OS, so
+# after months of continuous operation, RSS creeps up.  The reconcile
+# logic on startup makes restarts seamless.
+RuntimeMaxSec=86400
 EnvironmentFile=/etc/pi_webcam/pi-webcam.env
 
 [Install]

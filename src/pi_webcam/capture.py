@@ -88,7 +88,6 @@ class CaptureWorker:
         self.last_capture_at: int | None = None
         self.errors = 0
         self._process: asyncio.subprocess.Process | None = None
-        self._known_files: set[str] = set()
         self._stop_event = asyncio.Event()
 
     @property
@@ -104,11 +103,6 @@ class CaptureWorker:
         # Remove stale latest.jpg to avoid ffmpeg permission errors
         latest = self.output_dir / "latest.jpg"
         latest.unlink(missing_ok=True)
-
-        # Seed known files from existing directory contents
-        self._known_files = {
-            str(p) for p in self.output_dir.rglob("*.jpg") if "thumb" not in str(p)
-        }
 
         backoff = 1.0
         max_backoff = 30.0
@@ -168,7 +162,11 @@ class CaptureWorker:
         poll_task = asyncio.create_task(self._poll_for_files())
 
         try:
-            stderr_data = b""
+            # Only keep the tail of stderr for the exit error message.
+            # ffmpeg writes status lines continuously; the old unbounded
+            # accumulation (`stderr_data += chunk`) leaked ~86 MB/day.
+            stderr_tail = bytearray()
+            stderr_max = 4096
             assert self._process.stderr is not None  # noqa: S101
             while True:
                 try:
@@ -176,7 +174,9 @@ class CaptureWorker:
                         self._process.stderr.read(4096), timeout=1.0
                     )
                     if chunk:
-                        stderr_data += chunk
+                        stderr_tail.extend(chunk)
+                        if len(stderr_tail) > stderr_max:
+                            del stderr_tail[: len(stderr_tail) - stderr_max]
                         # Log significant ffmpeg errors
                         text = chunk.decode("utf-8", errors="replace")
                         for line in text.strip().split("\n"):
@@ -196,7 +196,7 @@ class CaptureWorker:
                 logger.error(
                     "ffmpeg exited with code %d: %s",
                     self._process.returncode,
-                    stderr_data[-500:].decode("utf-8", errors="replace"),
+                    bytes(stderr_tail[-500:]).decode("utf-8", errors="replace"),
                 )
                 raise RuntimeError(f"ffmpeg exited with code {self._process.returncode}")
         finally:

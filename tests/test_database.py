@@ -172,3 +172,42 @@ class TestDatabase:
         row = db.conn.execute("PRAGMA journal_mode").fetchone()
         assert row is not None
         assert row[0] == "wal"
+
+    def test_get_frames_sampled(self, db: Database) -> None:
+        now = int(time.time())
+        # Insert 20 frames — ids will be 1..20
+        for i in range(20):
+            db.insert_frame(
+                filename=f"s{i}.jpg", captured_at=now + i, file_path=f"s{i}.jpg"
+            )
+
+        # sample=5 → return frames where id % 5 == 0 → ids 5, 10, 15, 20
+        frames, total = db.get_frames(sample=5)
+        assert total == 20
+        assert len(frames) == 4
+        # Results should be in chronological (id) order
+        assert frames[0]["captured_at"] < frames[-1]["captured_at"]
+
+    def test_get_frames_sampled_with_range(self, db: Database) -> None:
+        now = int(time.time())
+        for i in range(20):
+            db.insert_frame(
+                filename=f"r{i}.jpg", captured_at=now + i, file_path=f"r{i}.jpg"
+            )
+
+        frames, total = db.get_frames(start=now + 5, end=now + 15, sample=3)
+        assert total == 11  # frames 5..15 inclusive
+        # Only frames within range whose id is divisible by 3
+        for f in frames:
+            assert now + 5 <= f["captured_at"] <= now + 15
+            assert f["id"] % 3 == 0
+
+    def test_wal_checkpoint(self, db: Database) -> None:
+        # Should not raise
+        db.wal_checkpoint()
+
+    def test_full_vacuum_if_needed(self, db: Database) -> None:
+        # First call should always vacuum (last_vacuum = 0)
+        assert db.full_vacuum_if_needed(interval_seconds=86400) is True
+        # Immediate second call should skip
+        assert db.full_vacuum_if_needed(interval_seconds=86400) is False

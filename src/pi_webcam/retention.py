@@ -44,11 +44,21 @@ def delete_frame_files(frames_dir: Path, paths: list[tuple[str, str | None]]) ->
 
 def clean_empty_dirs(frames_dir: Path) -> int:
     """Remove empty directories under frames_dir. Returns count removed."""
+    import os
+
     removed = 0
-    # Walk bottom-up to remove leaf empty dirs first
-    for dirpath in sorted(frames_dir.rglob("*"), reverse=True):
-        if dirpath.is_dir() and not any(dirpath.iterdir()):
-            dirpath.rmdir()
+    # os.walk(topdown=False) visits leaves first and is memory-efficient
+    # (holds one directory at a time). The old rglob("*") + sorted() approach
+    # materialised every file AND directory into a sorted list — 1.2M+ Path
+    # objects (~180 MB) for 14 days of frames on the Pi Zero.
+    for dirpath, _dirnames, _filenames in os.walk(str(frames_dir), topdown=False):
+        p = Path(dirpath)
+        if p == frames_dir:
+            continue
+        # Re-check the filesystem because earlier iterations may have removed
+        # children since os.walk enumerated them.
+        if not any(p.iterdir()):
+            p.rmdir()
             removed += 1
     return removed
 
@@ -102,6 +112,14 @@ def run_cleanup(settings: Settings, db: Database) -> tuple[int, int]:
     if age_deleted or watermark_deleted:
         clean_empty_dirs(settings.frames_dir)
         db.run_incremental_vacuum()
+
+    # Always checkpoint WAL — inserts accumulate even without deletions.
+    # Without this, the WAL file grows for days, causing reads to crawl.
+    db.wal_checkpoint()
+
+    # Full VACUUM once per day to defragment page layout.
+    if db.full_vacuum_if_needed():
+        logger.info("Full VACUUM completed")
 
     return age_deleted, watermark_deleted
 
